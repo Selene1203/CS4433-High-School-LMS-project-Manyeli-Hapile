@@ -1,0 +1,27 @@
+From 426617eb48affeb7fdef3eb813d8e4836be4312e Mon Sep 17 00:00:00 2001
+From: Hapile Manyeli <sliqman42@gmail.com>
+Date: Mon, 2 Nov 2026 10:29:40 +0200
+Subject: [PATCH 3/6] Time the audit log view in all runs
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011ivwY7ryLHZpp8Pc5k6y9K
+---
+ tests/perf/run_perf.py | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/tests/perf/run_perf.py b/tests/perf/run_perf.py
+index 24afa1c..000a34e 100644
+--- a/tests/perf/run_perf.py
++++ b/tests/perf/run_perf.py
+@@ -111,7 +111,7 @@ for i in range(RUNS):
+     role_run("hod1", "Hod#2026pw", i, hod)
+     # the new users are created in the order of the runs, so the ids are 812, 813, ...
+     role_run("admin", "Admin#2026", i, admin)
+-    role_run("admin", "Admin#2026", i, admin_audit) if i < 5 else None
++    role_run("admin", "Admin#2026", i, admin_audit)
+     print("run %d done" % (i + 1), file=sys.stderr)
+ 
+ def p95(v):
+-- 
+2.43.0
+

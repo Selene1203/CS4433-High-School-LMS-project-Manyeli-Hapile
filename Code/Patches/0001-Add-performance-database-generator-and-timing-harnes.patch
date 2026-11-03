@@ -1,0 +1,259 @@
+From dfec4c9c2b88cbee6623dff9ace8916a192b202a Mon Sep 17 00:00:00 2001
+From: Hapile Manyeli <sliqman42@gmail.com>
+Date: Mon, 2 Nov 2026 10:29:33 +0200
+Subject: [PATCH 1/6] Add performance database generator and timing harness for
+ NFR-01 and NFR-11
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011ivwY7ryLHZpp8Pc5k6y9K
+---
+ tests/perf/make_perf_db.py | 101 +++++++++++++++++++++++++++++
+ tests/perf/run_perf.py     | 128 +++++++++++++++++++++++++++++++++++++
+ 2 files changed, 229 insertions(+)
+ create mode 100644 tests/perf/make_perf_db.py
+ create mode 100644 tests/perf/run_perf.py
+
+diff --git a/tests/perf/make_perf_db.py b/tests/perf/make_perf_db.py
+new file mode 100644
+index 0000000..7496d6e
+--- /dev/null
++++ b/tests/perf/make_perf_db.py
+@@ -0,0 +1,101 @@
++#!/usr/bin/env python3
++"""Builds the performance database for NFR-01 and NFR-11.
++800 students, 8 courses in 2 departments, 50 closed assignments per course and
++one open assignment per course. Every student is enrolled in every course and
++has submitted every closed assignment, so there are 800 x 8 x 50 = 320,000
++submissions. Every mark has an audit entry and every approval has one too. It writes straight into SQLite using the Phase 3 schema.sql.
++Usage: make_perf_db.py SCHEMA_SQL OUT_DB"""
++import hashlib, os, random, sqlite3, sys, time
++
++SCHEMA, OUT = sys.argv[1], sys.argv[2]
++STUDENTS, COURSES, CLOSED = 800, 8, 50
++random.seed(2026)
++
++def hash_pw(pw):
++    salt = os.urandom(16)
++    key = hashlib.pbkdf2_hmac("sha256", pw.encode(), salt, 100000, 32)
++    return "pbkdf2$100000$%s$%s" % (salt.hex(), key.hex())
++
++def ts(t):
++    return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t))
++
++if os.path.exists(OUT):
++    os.remove(OUT)
++con = sqlite3.connect(OUT)
++con.executescript(open(SCHEMA).read())
++con.execute("PRAGMA foreign_keys = ON")
++now = int(time.time())
++day = 86400
++
++# one hash per password. The 800 students share one salt, which is fine for timing.
++h_admin, h_hod, h_lec, h_stu = (hash_pw(p) for p in ("Admin#2026", "Hod#2026pw", "Lect#2026pw", "Stud#2026pw"))
++
++users = [(1, "admin", h_admin, "Administrator", "ADMIN")]
++users += [(2, "hod1", h_hod, "HoD One", "HOD"), (3, "hod2", h_hod, "HoD Two", "HOD")]
++users += [(3 + c, "lect%d" % c, h_lec, "Lecturer %d" % c, "LECTURER") for c in range(1, COURSES + 1)]
++first_student = 3 + COURSES + 1            # id 12
++users += [(first_student + i, "stu%d" % (i + 1), h_stu, "Student %d" % (i + 1), "STUDENT") for i in range(STUDENTS)]
++con.executemany("INSERT INTO app_user(user_id,username,password_hash,full_name,role) VALUES (?,?,?,?,?)", users)
++
++con.executemany("INSERT INTO department(dept_id,name,hod_id) VALUES (?,?,?)", [(1, "Sciences", 2), (2, "Humanities", 3)])
++con.executemany("INSERT INTO course(course_id,dept_id,code,name) VALUES (?,?,?,?)",
++                [(c, 1 if c <= 4 else 2, "C%03d" % c, "Course %d" % c) for c in range(1, COURSES + 1)])
++con.executemany("INSERT INTO course_lecturer VALUES (?,?)", [(c, 3 + c) for c in range(1, COURSES + 1)])
++con.executemany("INSERT INTO enrolment VALUES (?,?,?)",
++                [(first_student + i, c, ts(now - 400 * day)) for i in range(STUDENTS) for c in range(1, COURSES + 1)])
++
++# assignments: ids 1..400 closed (course c, number k), then 401..408 open
++aid = {}
++rows = []
++n = 0
++for c in range(1, COURSES + 1):
++    for k in range(1, CLOSED + 1):
++        n += 1
++        aid[(c, k)] = n
++        rows.append((n, c, 3 + c, "Assignment %d" % k, "Generated", ts(now - (CLOSED + 1 - k) * 7 * day), 20))
++for c in range(1, COURSES + 1):
++    n += 1
++    aid[(c, 0)] = n
++    rows.append((n, c, 3 + c, "Open assignment", "Generated", ts(now + 14 * day), 20))
++con.executemany("INSERT INTO assignment(assignment_id,course_id,created_by,title,description,deadline,max_mark) VALUES (?,?,?,?,?,?,?)", rows)
++
++# status of the closed assignments: 1-46 released, 47 approved, 48 marked, 49-50 unmarked
++def status_of(k):
++    return "RELEASED" if k <= 46 else "MODERATED" if k == 47 else "MARKED" if k == 48 else None
++
++text = "Generated work for the performance test. " * 5
++sid = 0
++sub_rows, mark_rows = [], []
++for c in range(1, COURSES + 1):
++    hod = 2 if c <= 4 else 3
++    for k in range(1, CLOSED + 1):
++        deadline = now - (CLOSED + 1 - k) * 7 * day
++        for i in range(STUDENTS):
++            sid += 1
++            late = random.random() < 0.03          # 3 percent are one day late
++            when = deadline + (day // 2 if late else -random.randint(3600, 3 * day))
++            sub_rows.append((sid, aid[(c, k)], first_student + i, ts(when), text))
++            st = status_of(k)
++            if st:
++                raw = float(random.randint(6, 20))
++                days = 1 if late else 0
++                fin = max(0.0, raw - 2.0 * days)      # 10 percent of 20 per day
++                mark_rows.append((sid, raw, days, fin, "Generated feedback", st, 3 + c, ts(when + day),
++                                  hod if st in ("MODERATED", "RELEASED") else None,
++                                  ts(when + 2 * day) if st == "RELEASED" else None))
++con.executemany("INSERT INTO submission(submission_id,assignment_id,student_id,submitted_at,content) VALUES (?,?,?,?,?)", sub_rows)
++con.executemany("INSERT INTO mark VALUES (?,?,?,?,?,?,?,?,?,?)", mark_rows)
++# the audit log of a real school would hold one entry per mark and one per approval
++audit = []
++for (sub, raw, days, fin, fb, st, by, at, mod, rel) in mark_rows:
++    audit.append((by, at, "MARK", sub, None, "raw %.1f" % raw, ""))
++    if mod:
++        audit.append((mod, at, "APPROVE", sub, "MARKED", st, ""))
++con.executemany("INSERT INTO audit_log(actor_id,at,action,submission_id,old_value,new_value,reason) VALUES (?,?,?,?,?,?,?)", audit)
++con.commit()
++for t in ("app_user", "course", "enrolment", "assignment", "submission", "mark", "audit_log"):
++    print(t, con.execute("SELECT count(*) FROM %s" % t).fetchone()[0])
++print("integrity:", con.execute("PRAGMA integrity_check").fetchone()[0])
++print("foreign key problems:", len(con.execute("PRAGMA foreign_key_check").fetchall()))
++con.close()
++print("size MB: %.1f" % (os.path.getsize(OUT) / 1e6))
+diff --git a/tests/perf/run_perf.py b/tests/perf/run_perf.py
+new file mode 100644
+index 0000000..24afa1c
+--- /dev/null
++++ b/tests/perf/run_perf.py
+@@ -0,0 +1,128 @@
++#!/usr/bin/env python3
++"""Times the real lms program on the generated database (NFR-01, NFR-11).
++Each run starts a new lms process, logs in, does each action once and logs out.
++An action is timed from the moment its last input line is written until the
++next menu prompt ("Choice: ") appears. Typing time is not counted.
++Usage: run_perf.py PATH_TO_LMS PERF_DB [RUNS] [RESULTS_JSON]
++The database is changed by the run (marks, approvals, new users), so keep a
++pristine copy and regenerate or copy it again before repeating."""
++import json, os, re, select, statistics, subprocess, sys, time
++
++LMS, DB = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
++RUNS = int(sys.argv[3]) if len(sys.argv) > 3 else 20
++OUT = sys.argv[4] if len(sys.argv) > 4 else None
++FIRST_STUDENT, PER_ASSIGN = 12, 800
++
++class Session:
++    def __init__(self):
++        t0 = time.perf_counter()
++        self.p = subprocess.Popen([LMS, "--db", DB], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
++                                  stderr=subprocess.PIPE, bufsize=0)
++        self.buf = b""
++        self.wait("Username (blank to exit): ")
++        self.startup = time.perf_counter() - t0
++    def wait(self, prompt, limit=120):
++        end = prompt.encode()
++        t_end = time.time() + limit
++        while not self.buf.endswith(end):
++            r, _, _ = select.select([self.p.stdout], [], [], 1)
++            if r:
++                chunk = os.read(self.p.stdout.fileno(), 1 << 20)
++                if not chunk:
++                    raise RuntimeError("program ended: " + self.p.stderr.read().decode())
++                self.buf += chunk
++            elif time.time() > t_end:
++                raise RuntimeError("timeout waiting for " + prompt)
++        text, self.buf = self.buf.decode(errors="replace"), b""
++        return text
++    def timed(self, lines, prompt="Choice: "):
++        t0 = time.perf_counter()
++        self.p.stdin.write(("\n".join(lines) + "\n").encode())
++        text = self.wait(prompt)
++        return time.perf_counter() - t0, text
++    def close(self):
++        try:
++            self.p.stdin.write(b"0\n\n"); self.p.stdin.close()
++        except Exception:
++            pass
++        self.p.wait(timeout=30)
++
++times, notes = {}, {}
++def rec(name, secs, text=None):
++    times.setdefault(name, []).append(secs)
++    if text is not None:
++        notes[name] = text.count("\n")
++
++def role_run(user, pw, i, actions):
++    s = Session()
++    rec("Start program and open database", s.startup)
++    secs, text = s.timed([user, pw])
++    assert "Welcome" in text, text[:200]
++    rec("Login (%s)" % actions["role"], secs)
++    for name, fn in actions["list"]:
++        lines, check = fn(i)
++        secs, text = s.timed(lines)
++        if check and check not in text:
++            raise RuntimeError("%s run %d: expected %r, got %r" % (name, i, check, text[-300:]))
++        rec(name, secs, text)
++    s.close()
++
++def sid(course, k, idx):          # submission id from course, assignment number, student index
++    return (course - 1) * 50 * PER_ASSIGN + (k - 1) * PER_ASSIGN + idx + 1
++
++student = {"role": "student", "list": [
++    ("Student: list my assignments", lambda i: (["1"], "MARK RELEASED")),
++    ("Student: view my released marks", lambda i: (["3"], "RELEASED")),
++    ("Student: submit work", lambda i: (["2", "401", "Perf test work", "END"], "Submitted")),
++]}
++lecturer = {"role": "lecturer", "list": [
++    ("Lecturer: list work waiting to be marked", lambda i: (["3"], "Submission")),
++    ("Lecturer: mark a submission", lambda i: (["4", str(sid(1, 49, i)), "15", "Good work"], "Saved")),
++    ("Lecturer: create assignment", lambda i: (["1", "1", "Perf %d" % i, "Generated", "2027-01-15 17:00", "20"], "Created")),
++    ("Lecturer: extension for one student", lambda i: (["2", "401", str(FIRST_STUDENT + 100 + i), "2027-02-01 17:00", "Perf test"], "Extension saved")),
++]}
++lecturer2 = {"role": "lecturer", "list": [
++    ("Lecturer: extension for the whole class (800 students)",
++     lambda i: (["7", "402", "2027-01-%02d 17:00" % (i + 1), "Perf test"], "800 student")),
++]}
++hod = {"role": "HoD", "list": [
++    ("HoD: list marks waiting for moderation", lambda i: (["1"], "Submission")),
++    ("HoD: approve a mark", lambda i: (["2", str(sid(1, 48, i))], "Approved")),
++    ("HoD: release a mark", lambda i: (["5", str(sid(1, 47, i))], "Released")),
++]}
++new_ids = {}
++def create_user(i):
++    return ["1", "STUDENT", "perfuser%d" % i, "Perf User %d" % i, "Test#2026pw"], "Created user"
++admin = {"role": "admin", "list": [
++    ("Admin: create user", create_user),
++    ("Admin: list users", lambda i: (["2"], "stu800")),
++    ("Admin: enrol student", lambda i: (["10", str(FIRST_STUDENT + 800 + i), "1"], "Enrolled")),
++    ("Admin: back up database (158 MB)", lambda i: (["13", os.path.join(os.path.dirname(DB), "perf_backup.db")], "Backup written")),
++]}
++admin_audit = {"role": "admin (audit)", "list": [
++    ("Admin: view audit log (about 608,000 entries)", lambda i: (["11"], "APPROVE")),
++]}
++
++t_start = time.time()
++for i in range(RUNS):
++    role_run("stu%d" % (i + 1), "Stud#2026pw", i, student)
++    role_run("lect1", "Lect#2026pw", i, lecturer)
++    role_run("lect2", "Lect#2026pw", i, lecturer2)
++    role_run("hod1", "Hod#2026pw", i, hod)
++    # the new users are created in the order of the runs, so the ids are 812, 813, ...
++    role_run("admin", "Admin#2026", i, admin)
++    role_run("admin", "Admin#2026", i, admin_audit) if i < 5 else None
++    print("run %d done" % (i + 1), file=sys.stderr)
++
++def p95(v):
++    v = sorted(v); return v[min(len(v) - 1, int(round(0.95 * (len(v) - 1))))]
++summary = {}
++for name, v in times.items():
++    summary[name] = dict(n=len(v), min=min(v), median=statistics.median(v), mean=statistics.mean(v),
++                         p95=p95(v), max=max(v), output_lines=notes.get(name), raw=v)
++rows = sorted(summary.items())
++print("%-62s %3s %7s %7s %7s %7s %7s %8s" % ("Action", "n", "min", "median", "mean", "p95", "max", "lines"))
++for name, r in rows:
++    print("%-62s %3d %7.3f %7.3f %7.3f %7.3f %7.3f %8s" % (name, r["n"], r["min"], r["median"], r["mean"], r["p95"], r["max"], r["output_lines"] or ""))
++if OUT:
++    json.dump(summary, open(OUT, "w"), indent=1)
+-- 
+2.43.0
+

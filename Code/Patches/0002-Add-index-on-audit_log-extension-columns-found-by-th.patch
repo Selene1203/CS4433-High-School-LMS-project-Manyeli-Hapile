@@ -1,0 +1,154 @@
+From 130048502139105bd0632e7eed002013de7676f9 Mon Sep 17 00:00:00 2001
+From: Hapile Manyeli <sliqman42@gmail.com>
+Date: Mon, 2 Nov 2026 10:29:33 +0200
+Subject: [PATCH 2/6] Add index on audit_log extension columns, found by the
+ performance test
+
+Replacing an extension (INSERT OR REPLACE) made SQLite scan the whole audit
+log to check the foreign key, about 43 ms per student with 608,000 entries,
+so a class extension for 800 students took 36 s. The index is in schema.sql
+and is also created when an older database is opened. Version 1.1.1.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011ivwY7ryLHZpp8Pc5k6y9K
+---
+ CMakeLists.txt                |  2 +-
+ docs/phase3/db/schema.sql     |  2 ++
+ src/database.cpp              |  4 +++
+ src/version.cpp               |  2 +-
+ tests/CMakeLists.txt          |  2 +-
+ tests/database_index_test.cpp | 57 +++++++++++++++++++++++++++++++++++
+ 6 files changed, 66 insertions(+), 3 deletions(-)
+ create mode 100644 tests/database_index_test.cpp
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7156661..b98d55f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1,5 +1,5 @@
+ cmake_minimum_required(VERSION 3.16)
+-project(ModeratedLMS VERSION 1.1.0 LANGUAGES CXX)
++project(ModeratedLMS VERSION 1.1.1 LANGUAGES CXX)
+ 
+ set(CMAKE_CXX_STANDARD 17)
+ set(CMAKE_CXX_STANDARD_REQUIRED ON)
+diff --git a/docs/phase3/db/schema.sql b/docs/phase3/db/schema.sql
+index 5fd6242..d7df884 100644
+--- a/docs/phase3/db/schema.sql
++++ b/docs/phase3/db/schema.sql
+@@ -104,6 +104,8 @@ CREATE INDEX idx_submission_student ON submission(student_id);
+ CREATE INDEX idx_mark_status        ON mark(status);
+ CREATE INDEX idx_enrolment_course   ON enrolment(course_id);
+ CREATE INDEX idx_assignment_course  ON assignment(course_id);
++-- found by the Week 6 performance test: without this, replacing an extension scans the whole audit log
++CREATE INDEX idx_audit_extension    ON audit_log(ext_assignment_id, ext_student_id);
+ 
+ -- the audit log is append only (NFR-06)
+ CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit_log
+diff --git a/src/database.cpp b/src/database.cpp
+index cc723d0..17206c5 100644
+--- a/src/database.cpp
++++ b/src/database.cpp
+@@ -22,6 +22,10 @@ Database::Database(const std::string& path) {
+                   "SELECT count(*) FROM sqlite_master WHERE name='app_user'");
+   check.step();
+   if (check.getInt(0) == 0) exec(schemaSql());
++  // v1.0 and v1.1 databases do not have this index, so add it when they are
++  // opened. It is a no-op on a database that already has it.
++  exec("CREATE INDEX IF NOT EXISTS idx_audit_extension ON "
++       "audit_log(ext_assignment_id, ext_student_id);");
+ }
+ 
+ Database::~Database() {
+diff --git a/src/version.cpp b/src/version.cpp
+index 6d9a049..5f8f4ee 100644
+--- a/src/version.cpp
++++ b/src/version.cpp
+@@ -4,7 +4,7 @@
+ 
+ namespace lms {
+ 
+-std::string appVersion() { return "1.1.0"; }
++std::string appVersion() { return "1.1.1"; }
+ 
+ std::string sqliteVersion() { return sqlite3_libversion(); }
+ 
+diff --git a/tests/CMakeLists.txt b/tests/CMakeLists.txt
+index 7362001..274daaa 100644
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -2,7 +2,7 @@ add_executable(lms_tests
+   version_test.cpp types_test.cpp penalty_test.cpp password_user_test.cpp
+   mark_test.cpp accounts_test.cpp submission_test.cpp
+   marking_moderation_test.cpp security_audit_test.cpp console_ui_test.cpp
+-  cr1_class_extension_test.cpp)
++  cr1_class_extension_test.cpp database_index_test.cpp)
+ target_link_libraries(lms_tests PRIVATE lms_core GTest::gtest_main)
+ 
+ include(GoogleTest)
+diff --git a/tests/database_index_test.cpp b/tests/database_index_test.cpp
+new file mode 100644
+index 0000000..5873879
+--- /dev/null
++++ b/tests/database_index_test.cpp
+@@ -0,0 +1,57 @@
++#include <gtest/gtest.h>
++#include <sqlite3.h>
++
++#include <cstdio>
++#include <string>
++
++#include "lms/database.hpp"
++
++namespace {
++
++// Counts rows in sqlite_master for the audit index, using a plain connection.
++int indexCount(const std::string& path) {
++  sqlite3* raw = nullptr;
++  EXPECT_EQ(sqlite3_open(path.c_str(), &raw), SQLITE_OK);
++  sqlite3_stmt* st = nullptr;
++  sqlite3_prepare_v2(raw,
++                     "SELECT count(*) FROM sqlite_master WHERE "
++                     "name='idx_audit_extension'",
++                     -1, &st, nullptr);
++  sqlite3_step(st);
++  int n = sqlite3_column_int(st, 0);
++  sqlite3_finalize(st);
++  sqlite3_close(raw);
++  return n;
++}
++
++void dropIndex(const std::string& path) {
++  sqlite3* raw = nullptr;
++  ASSERT_EQ(sqlite3_open(path.c_str(), &raw), SQLITE_OK);
++  ASSERT_EQ(sqlite3_exec(raw, "DROP INDEX idx_audit_extension", nullptr, nullptr,
++                         nullptr),
++            SQLITE_OK);
++  sqlite3_close(raw);
++}
++
++}  // namespace
++
++// Replacing an extension makes SQLite check every audit entry that points at
++// it, so the audit table needs an index on those two columns.
++TEST(DatabaseIndex, NewDatabaseHasTheAuditExtensionIndex) {
++  const std::string path = "index_test_new.db";
++  std::remove(path.c_str());
++  { lms::Database db(path); }
++  EXPECT_EQ(indexCount(path), 1);
++  std::remove(path.c_str());
++}
++
++TEST(DatabaseIndex, OldDatabaseGetsTheIndexWhenItIsOpened) {
++  const std::string path = "index_test_old.db";
++  std::remove(path.c_str());
++  { lms::Database db(path); }
++  dropIndex(path);  // makes it look like a v1.0 or v1.1 database
++  ASSERT_EQ(indexCount(path), 0);
++  { lms::Database db(path); }
++  EXPECT_EQ(indexCount(path), 1);
++  std::remove(path.c_str());
++}
+-- 
+2.43.0
+

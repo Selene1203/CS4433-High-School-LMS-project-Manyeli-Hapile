@@ -1,0 +1,2755 @@
+From 20eb6e9e439d72df0fadd1f64100864d6a52fc86 Mon Sep 17 00:00:00 2001
+From: Hapile Manyeli <sliqman42@gmail.com>
+Date: Mon, 2 Nov 2026 10:37:54 +0200
+Subject: [PATCH 4/6] Fix the clang-tidy and complexity findings that matter
+
+Checked access to optional values in the demo loader and the audit export,
+checked downcast to HeadOfDepartment, initialised maxMark, made the column
+lists const, explicit constructor, and split every function above a
+cyclomatic complexity of 10. The menus are now tables of small actions.
+No change to what the program does. Evidence is in docs/week6/evidence.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011ivwY7ryLHZpp8Pc5k6y9K
+---
+ .../evidence/clang-tidy-after-by-check.txt    |  21 +
+ docs/week6/evidence/clang-tidy-after.txt      | 452 ++++++++++
+ .../evidence/clang-tidy-before-by-check.txt   |  25 +
+ docs/week6/evidence/clang-tidy-before.txt     | 466 ++++++++++
+ docs/week6/evidence/complexity-top.txt        |  16 +
+ docs/week6/evidence/performance-results.json  | 804 ++++++++++++++++++
+ include/lms/console_ui.hpp                    |  12 +
+ include/lms/penalty_strategy.hpp              |   2 +-
+ include/lms/repositories.hpp                  |   1 +
+ include/lms/services.hpp                      |   7 +-
+ src/console_ui.cpp                            | 482 +++++------
+ src/demo_data.cpp                             |  22 +-
+ src/services_accounts.cpp                     |   6 +-
+ src/services_work.cpp                         |  34 +-
+ src/sqlite_repository.cpp                     |  10 +-
+ src/types.cpp                                 |  15 +-
+ src/user.cpp                                  |  28 +-
+ 17 files changed, 2111 insertions(+), 292 deletions(-)
+ create mode 100644 docs/week6/evidence/clang-tidy-after-by-check.txt
+ create mode 100644 docs/week6/evidence/clang-tidy-after.txt
+ create mode 100644 docs/week6/evidence/clang-tidy-before-by-check.txt
+ create mode 100644 docs/week6/evidence/clang-tidy-before.txt
+ create mode 100644 docs/week6/evidence/complexity-top.txt
+ create mode 100644 docs/week6/evidence/performance-results.json
+
+diff --git a/docs/week6/evidence/clang-tidy-after-by-check.txt b/docs/week6/evidence/clang-tidy-after-by-check.txt
+new file mode 100644
+index 0000000..027c003
+--- /dev/null
++++ b/docs/week6/evidence/clang-tidy-after-by-check.txt
+@@ -0,0 +1,21 @@
++    216 [readability-identifier-length]
++    113 [readability-braces-around-statements]
++     38 [cppcoreguidelines-avoid-const-or-ref-data-members]
++     22 [modernize-use-nodiscard]
++     14 [cppcoreguidelines-special-member-functions]
++     14 [bugprone-easily-swappable-parameters]
++      6 [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++      4 [readability-isolate-declaration]
++      4 [performance-enum-size]
++      4 [cppcoreguidelines-pro-type-vararg]
++      4 [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++      2 [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++      2 [cert-err34-c]
++      2 [cert-err33-c]
++      1 [performance-unnecessary-value-param]
++      1 [performance-inefficient-vector-operation]
++      1 [modernize-use-auto]
++      1 [modernize-pass-by-value]
++      1 [cppcoreguidelines-pro-type-reinterpret-cast]
++      1 [cppcoreguidelines-avoid-non-const-global-variables]
++      1 [bugprone-empty-catch]
+diff --git a/docs/week6/evidence/clang-tidy-after.txt b/docs/week6/evidence/clang-tidy-after.txt
+new file mode 100644
+index 0000000..38e6a69
+--- /dev/null
++++ b/docs/week6/evidence/clang-tidy-after.txt
+@@ -0,0 +1,452 @@
++include/lms/console_ui.hpp:16:16: warning: member 'auth' of type 'AuthService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:17:17: warning: member 'admin' of type 'AdminService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:18:22: warning: member 'assignments' of type 'AssignmentService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:19:22: warning: member 'submissions' of type 'SubmissionService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:20:19: warning: member 'marking' of type 'MarkingService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:21:22: warning: member 'moderation' of type 'ModerationService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:22:13: warning: member 'db' of type 'Database &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:30:13: warning: pass by value and use std::move [modernize-pass-by-value]
++include/lms/console_ui.hpp:30:46: warning: parameter name 'in' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/console_ui.hpp:31:12: warning: parameter 'services' is passed by value and only copied once; consider moving it to avoid unnecessary copies [performance-unnecessary-value-param]
++include/lms/console_ui.hpp:64:17: warning: member 'in_' of type 'std::istream &' (aka 'basic_istream<char> &') is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:65:17: warning: member 'out_' of type 'std::ostream &' (aka 'basic_ostream<char> &') is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/database.hpp:12:7: warning: class 'Database' defines a destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:12:7: warning: class 'Database' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:19:3: warning: function 'handle' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:21:3: warning: function 'lastInsertId' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:33:7: warning: class 'Statement' defines a destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:33:7: warning: class 'Statement' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:35:23: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/database.hpp:50:3: warning: function 'getInt' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:51:3: warning: function 'getReal' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:52:3: warning: function 'getText' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:53:3: warning: function 'isNull' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/domain.hpp:56:3: warning: function 'data' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:11:3: warning: function 'penalty' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:18:27: warning: 2 adjacent parameters of 'StandardPenaltyStrategy' of similar type ('int') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++include/lms/penalty_strategy.hpp:20:3: warning: function 'penalty' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:8:7: warning: class 'PenaltyStrategy' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:101:7: warning: class 'ISubmissionRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:106:48: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:107:52: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:123:7: warning: class 'IMarkRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:127:41: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:138:12: warning: enum 'AuditAction' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/repositories.hpp:13:7: warning: class 'IUnitOfWork' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:140:34: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:156:7: warning: class 'IAuditRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:159:41: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:22:7: warning: class 'Transaction' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:29:9: warning: empty catch statements hide issues; to handle exceptions appropriately, consider re-throwing, handling, or avoiding catch altogether [bugprone-empty-catch]
++include/lms/repositories.hpp:46:7: warning: class 'IUserRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:51:50: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:65:7: warning: class 'ICourseRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:85:7: warning: class 'IAssignmentRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:88:47: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:98:47: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/services.hpp:106:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:107:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:108:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:109:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:110:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:111:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:117:14: warning: enum 'Outcome' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/services.hpp:154:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:155:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:156:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:157:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:158:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:180:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:181:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:182:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:183:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:184:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:185:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:186:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:220:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:221:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:222:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:223:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:224:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:225:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:29:20: warning: member 'users_' of type 'IUserRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:63:20: warning: member 'users_' of type 'IUserRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:64:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:65:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/sqlite_repository.hpp:18:39: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:28:42: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:50:39: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:57:39: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:63:40: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:64:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:69:33: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:77:33: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:81:13: warning: member 'db_' of type 'Database &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/types.hpp:17:12: warning: enum 'Role' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/types.hpp:18:12: warning: enum 'MarkStatus' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/types.hpp:20:27: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:21:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:26:29: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:32:31: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/user.hpp:23:7: warning: class 'User' defines a default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/user.hpp:30:3: warning: function 'id' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:31:3: warning: function 'username' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:32:3: warning: function 'fullName' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:33:3: warning: function 'isActive' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:34:3: warning: function 'isLocked' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:35:3: warning: function 'record' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:38:3: warning: function 'authenticate' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:40:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:49:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:55:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:61:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:68:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:70:3: warning: function 'deptId' should be marked [[nodiscard]] [modernize-use-nodiscard]
++src/console_ui.cpp:105:5: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/console_ui.cpp:109:43: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:134:33: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:134:34: warning: 'push_back' is called inside a loop; consider pre-allocating the container capacity before the loop [performance-inefficient-vector-operation]
++src/console_ui.cpp:137:9: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:138:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:147:39: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:153:22: warning: variable name 'pw' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:154:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:158:27: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:166:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:171:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:172:22: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:173:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:178:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:18:31: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:191:14: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:196:14: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:213:27: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:23:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:243:42: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:250:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:256:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:257:14: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:25:8: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:264:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:265:27: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:272:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:274:19: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:282:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:284:14: warning: variable name 'n' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:290:37: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:299:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:305:14: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:317:45: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:319:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:320:20: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:326:40: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:327:7: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:329:16: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:33:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:344:41: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:35:10: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:36:33: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:46:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/console_ui.cpp:48:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:63:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:65:10: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:82:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:83:20: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:84:21: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:101:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:101:58: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:106:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:112:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:113:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:114:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:120:36: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:123:31: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:124:36: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:125:24: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:126:25: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
++src/database.cpp:128:28: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:24:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:32:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:54:19: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:61:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:63:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:73:19: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:79:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:81:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:84:32: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:8:34: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:93:35: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:93:51: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:97:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:97:46: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:12:54: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:13:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/demo_data.cpp:39:7: warning: variable name 's1' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:41:7: warning: variable name 's2' is too short, expected at least 3 characters [readability-identifier-length]
++src/domain.cpp:28:19: warning: 3 adjacent parameters of 'adjust' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/domain.cpp:7:18: warning: 2 adjacent parameters of 'amend' of similar type ('double') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/domain.cpp:8:18: warning: 2 adjacent parameters of 'amend' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/main.cpp:24:17: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/main.cpp:24:21: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/main.cpp:33:14: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/main.cpp:40:19: warning: variable name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/main.cpp:67:20: warning: variable name 'ui' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:19:5: warning: variable 'gIterations' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/password.cpp:25:12: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:25:20: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:26:12: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:26:20: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:31:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:32:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:35:14: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:36:61: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:36:9: warning: 'sscanf' used to convert a string to an unsigned integer value, but function will not report conversion errors; consider using 'strtoul' instead [cert-err34-c]
++src/password.cpp:36:9: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/password.cpp:46:7: warning: variable name 'ok' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:50:15: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:68:21: warning: 2 adjacent parameters of 'verifyPassword' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/password.cpp:73:17: warning: variable name 'p' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:81:49: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:88:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:89:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/password.cpp:90:64: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:91:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:14:31: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:8:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:9:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:122:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:145:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:147:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:148:36: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:154:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:156:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:157:35: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:169:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:16:42: warning: 2 adjacent parameters of 'login' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_accounts.cpp:170:20: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_accounts.cpp:173:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:19:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:20:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:44:52: warning: 2 adjacent parameters of 'changePassword' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_accounts.cpp:51:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:72:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:85:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:94:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:95:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:119:65: warning: 2 adjacent parameters of 'classExtensionApplies' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:123:34: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:133:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:134:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:13:37: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:146:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:14:15: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:15:30: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:16:15: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:178:29: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:179:36: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:180:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:181:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:188:16: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:213:14: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:226:20: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:227:20: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:231:14: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:233:12: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:234:51: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:247:53: warning: 2 adjacent parameters of 'mark' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:251:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:252:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:253:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:258:15: warning: variable name 'fb' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:267:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:274:10: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:27:38: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:316:44: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:318:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:329:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:330:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:332:19: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:347:14: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:361:26: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:366:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:368:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:36:41: warning: 2 adjacent parameters of 'createAssignment' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:375:49: warning: 2 adjacent parameters of 'adjust' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:377:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:385:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:38:41: warning: 2 adjacent parameters of 'createAssignment' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:394:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:400:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:408:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:40:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:410:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:44:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:48:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:52:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:53:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:67:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:68:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:89:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:95:40: warning: 4 adjacent parameters of 'writeExtension' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:99:13: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:107:38: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:108:11: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:127:49: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:128:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:138:53: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:139:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:148:58: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:149:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:152:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:158:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:161:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:166:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:169:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:174:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:176:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:182:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:188:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:193:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:200:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:206:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:210:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:215:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:219:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:224:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:22:24: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:231:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:239:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:247:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:24:38: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:254:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:25:14: warning: variable name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:260:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:265:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:271:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:276:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:281:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:286:55: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:287:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:296:64: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:297:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:300:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:305:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:309:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:314:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:321:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:327:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:332:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:333:13: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:344:12: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:344:55: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:345:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:346:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:350:55: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:351:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:364:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:368:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:373:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:376:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:380:56: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:381:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:389:60: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:390:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:398:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:39:40: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:407:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:40:14: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:413:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:416:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:420:49: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:421:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:435:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:435:57: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:436:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:437:7: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:442:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:447:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:452:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:457:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:462:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:468:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:473:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:478:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:483:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:487:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:48:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:492:49: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:493:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:499:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:499:59: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:49:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:500:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:500:65: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:501:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:501:59: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:507:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:514:16: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:518:17: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:519:22: warning: variable name 'x' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:523:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:525:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:526:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:527:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:64:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:65:14: warning: variable name 'x' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:77:36: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:78:12: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:7:34: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:87:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:88:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:100:15: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:100:19: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:101:40: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:102:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:11:27: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:21:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:31:35: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:32:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:33:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:34:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:35:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:39:47: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:40:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:41:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:42:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:43:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:47:29: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:48:15: warning: variable name 'tt' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:48:3: warning: use auto when initializing with a cast to avoid duplicating the type name [modernize-use-auto]
++src/types.cpp:49:11: warning: variable name 'tm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:51:3: warning: do not declare C-style arrays, use std::array<> instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++src/types.cpp:52:17: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:52:3: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:52:3: warning: the value returned by this function should not be disregarded; neglecting it may lead to errors [cert-err33-c]
++src/types.cpp:55:10: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:60:18: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:60:25: warning: parameter name 'lo' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:60:33: warning: parameter name 'hi' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:14: warning: variable name 'mo' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:22: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:29: warning: variable name 'h' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:36: warning: variable name 'mi' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/types.cpp:65:44: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:65:7: warning: variable name 'y' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:66:11: warning: 'sscanf' used to convert a string to an integer value, but function will not report conversion errors; consider using 'strtol' instead [cert-err34-c]
++src/types.cpp:66:11: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:66:7: warning: variable name 'n' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:68:13: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:72:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:73:11: warning: variable name 'tm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:80:15: warning: variable name 'tt' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:97:31: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:98:3: warning: do not declare C-style arrays, use std::array<> instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++src/types.cpp:99:17: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:99:3: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:99:3: warning: the value returned by this function should not be disregarded; neglecting it may lead to errors [cert-err33-c]
++src/user.cpp:20:31: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:30:13: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:40:43: warning: 2 adjacent parameters of 'create' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/user.cpp:47:14: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:55:65: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
+diff --git a/docs/week6/evidence/clang-tidy-before-by-check.txt b/docs/week6/evidence/clang-tidy-before-by-check.txt
+new file mode 100644
+index 0000000..55f0c42
+--- /dev/null
++++ b/docs/week6/evidence/clang-tidy-before-by-check.txt
+@@ -0,0 +1,25 @@
++    212 [readability-identifier-length]
++    116 [readability-braces-around-statements]
++     38 [cppcoreguidelines-avoid-const-or-ref-data-members]
++     22 [modernize-use-nodiscard]
++     14 [cppcoreguidelines-special-member-functions]
++     13 [bugprone-easily-swappable-parameters]
++      6 [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++      6 [cppcoreguidelines-avoid-non-const-global-variables]
++      6 [bugprone-unchecked-optional-access]
++      4 [readability-isolate-declaration]
++      4 [performance-enum-size]
++      4 [cppcoreguidelines-pro-type-vararg]
++      4 [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++      2 [readability-function-cognitive-complexity]
++      2 [cppcoreguidelines-pro-type-static-cast-downcast]
++      2 [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++      2 [cert-err34-c]
++      2 [cert-err33-c]
++      1 [performance-unnecessary-value-param]
++      1 [modernize-use-auto]
++      1 [modernize-pass-by-value]
++      1 [cppcoreguidelines-pro-type-reinterpret-cast]
++      1 [cppcoreguidelines-pro-type-member-init]
++      1 [bugprone-implicit-widening-of-multiplication-result]
++      1 [bugprone-empty-catch]
+diff --git a/docs/week6/evidence/clang-tidy-before.txt b/docs/week6/evidence/clang-tidy-before.txt
+new file mode 100644
+index 0000000..dec5a6a
+--- /dev/null
++++ b/docs/week6/evidence/clang-tidy-before.txt
+@@ -0,0 +1,466 @@
++include/lms/console_ui.hpp:14:16: warning: member 'auth' of type 'AuthService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:15:17: warning: member 'admin' of type 'AdminService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:16:22: warning: member 'assignments' of type 'AssignmentService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:17:22: warning: member 'submissions' of type 'SubmissionService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:18:19: warning: member 'marking' of type 'MarkingService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:19:22: warning: member 'moderation' of type 'ModerationService &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:20:13: warning: member 'db' of type 'Database &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:28:13: warning: pass by value and use std::move [modernize-pass-by-value]
++include/lms/console_ui.hpp:28:46: warning: parameter name 'in' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/console_ui.hpp:29:12: warning: parameter 'services' is passed by value and only copied once; consider moving it to avoid unnecessary copies [performance-unnecessary-value-param]
++include/lms/console_ui.hpp:53:17: warning: member 'in_' of type 'std::istream &' (aka 'basic_istream<char> &') is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/console_ui.hpp:54:17: warning: member 'out_' of type 'std::ostream &' (aka 'basic_ostream<char> &') is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/database.hpp:12:7: warning: class 'Database' defines a destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:12:7: warning: class 'Database' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:19:3: warning: function 'handle' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:21:3: warning: function 'lastInsertId' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:33:7: warning: class 'Statement' defines a destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:33:7: warning: class 'Statement' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/database.hpp:35:23: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/database.hpp:50:3: warning: function 'getInt' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:51:3: warning: function 'getReal' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:52:3: warning: function 'getText' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/database.hpp:53:3: warning: function 'isNull' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/domain.hpp:56:3: warning: function 'data' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:11:3: warning: function 'penalty' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:18:27: warning: 2 adjacent parameters of 'StandardPenaltyStrategy' of similar type ('int') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++include/lms/penalty_strategy.hpp:20:3: warning: function 'penalty' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/penalty_strategy.hpp:8:7: warning: class 'PenaltyStrategy' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:100:7: warning: class 'ISubmissionRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:105:48: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:106:52: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:122:7: warning: class 'IMarkRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:126:41: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:137:12: warning: enum 'AuditAction' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/repositories.hpp:139:34: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:13:7: warning: class 'IUnitOfWork' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:155:7: warning: class 'IAuditRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:158:41: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:22:7: warning: class 'Transaction' defines a non-default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:29:9: warning: empty catch statements hide issues; to handle exceptions appropriately, consider re-throwing, handling, or avoiding catch altogether [bugprone-empty-catch]
++include/lms/repositories.hpp:45:7: warning: class 'IUserRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:50:50: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:64:7: warning: class 'ICourseRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:84:7: warning: class 'IAssignmentRepository' defines a default destructor but does not define a copy constructor, a copy assignment operator, a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/repositories.hpp:87:47: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/repositories.hpp:97:47: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/services.hpp:101:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:102:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:103:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:104:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:105:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:106:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:112:14: warning: enum 'Outcome' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/services.hpp:149:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:150:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:151:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:152:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:153:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:175:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:176:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:177:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:178:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:179:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:180:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:181:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:206:10: warning: constructor does not initialize these fields: maxMark [cppcoreguidelines-pro-type-member-init]
++include/lms/services.hpp:215:26: warning: member 'submissions_' of type 'ISubmissionRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:216:26: warning: member 'assignments_' of type 'IAssignmentRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:217:20: warning: member 'marks_' of type 'IMarkRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:218:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:219:16: warning: member 'uow_' of type 'IUnitOfWork &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:220:26: warning: member 'penalty_' of type 'const PenaltyStrategy &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:29:20: warning: member 'users_' of type 'IUserRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:63:20: warning: member 'users_' of type 'IUserRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:64:22: warning: member 'courses_' of type 'ICourseRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/services.hpp:65:21: warning: member 'audit_' of type 'IAuditRepository &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/sqlite_repository.hpp:18:39: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:28:42: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:50:39: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:57:39: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:63:40: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:64:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:69:33: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:77:33: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/sqlite_repository.hpp:81:13: warning: member 'db_' of type 'Database &' is a reference [cppcoreguidelines-avoid-const-or-ref-data-members]
++include/lms/types.hpp:17:12: warning: enum 'Role' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/types.hpp:18:12: warning: enum 'MarkStatus' uses a larger base type ('int', size: 4 bytes) than necessary for its value set, consider using 'std::uint8_t' (1 byte) as the base type to reduce its size [performance-enum-size]
++include/lms/types.hpp:20:27: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:21:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:26:29: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/types.hpp:32:31: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++include/lms/user.hpp:23:7: warning: class 'User' defines a default destructor, a copy constructor and a copy assignment operator but does not define a move constructor or a move assignment operator [cppcoreguidelines-special-member-functions]
++include/lms/user.hpp:30:3: warning: function 'id' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:31:3: warning: function 'username' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:32:3: warning: function 'fullName' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:33:3: warning: function 'isActive' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:34:3: warning: function 'isLocked' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:35:3: warning: function 'record' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:38:3: warning: function 'authenticate' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:40:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:49:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:55:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:61:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:68:3: warning: function 'role' should be marked [[nodiscard]] [modernize-use-nodiscard]
++include/lms/user.hpp:70:3: warning: function 'deptId' should be marked [[nodiscard]] [modernize-use-nodiscard]
++src/console_ui.cpp:100:43: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:125:17: warning: function 'adminMenu' has cognitive complexity of 31 (threshold 25) [readability-function-cognitive-complexity]
++src/console_ui.cpp:125:39: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:134:9: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:135:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:142:23: warning: variable name 'pw' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:143:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:148:28: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:156:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:162:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:163:23: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:164:39: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:170:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:184:15: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:18:31: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:190:15: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:210:28: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:23:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:244:42: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:251:9: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:252:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:25:8: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:260:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:267:15: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:268:15: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:276:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:277:28: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:285:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:287:20: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:295:15: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:297:15: warning: variable name 'n' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:309:37: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:315:9: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:316:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:325:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:332:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:33:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:350:17: warning: function 'studentMenu' has cognitive complexity of 26 (threshold 25) [readability-function-cognitive-complexity]
++src/console_ui.cpp:350:41: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:354:9: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:355:16: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:35:10: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:360:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:361:28: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:369:15: warning: variable name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:36:33: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:371:24: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:46:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/console_ui.cpp:48:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:63:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:65:10: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:82:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/console_ui.cpp:83:20: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:84:21: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/console_ui.cpp:96:5: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/database.cpp:101:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:101:58: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:106:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:112:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:113:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:114:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:120:36: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:123:31: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:124:36: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:125:24: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:126:25: warning: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast]
++src/database.cpp:128:28: warning: parameter name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:24:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:32:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:54:19: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:61:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:63:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:73:19: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:79:7: warning: variable name 'rc' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:81:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/database.cpp:84:32: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:8:34: warning: parameter name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:93:35: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:93:51: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:97:36: warning: parameter name 'i' is too short, expected at least 3 characters [readability-identifier-length]
++src/database.cpp:97:46: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:20:41: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/demo_data.cpp:27:7: warning: variable name 's1' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:29:7: warning: variable name 's2' is too short, expected at least 3 characters [readability-identifier-length]
++src/demo_data.cpp:39:44: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/demo_data.cpp:48:39: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/demo_data.cpp:49:39: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/demo_data.cpp:52:41: warning: performing an implicit widening conversion to type 'Time' (aka 'long') of a multiplication performed in type 'int' [bugprone-implicit-widening-of-multiplication-result]
++src/domain.cpp:28:19: warning: 3 adjacent parameters of 'adjust' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/domain.cpp:7:18: warning: 2 adjacent parameters of 'amend' of similar type ('double') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/domain.cpp:8:18: warning: 2 adjacent parameters of 'amend' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/main.cpp:24:17: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/main.cpp:24:21: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/main.cpp:33:14: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/main.cpp:40:19: warning: variable name 'db' is too short, expected at least 3 characters [readability-identifier-length]
++src/main.cpp:67:20: warning: variable name 'ui' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:19:5: warning: variable 'gIterations' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/password.cpp:25:12: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:25:20: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:26:12: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:26:20: warning: do not use pointer arithmetic [cppcoreguidelines-pro-bounds-pointer-arithmetic]
++src/password.cpp:31:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:32:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:35:14: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:36:61: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:36:9: warning: 'sscanf' used to convert a string to an unsigned integer value, but function will not report conversion errors; consider using 'strtoul' instead [cert-err34-c]
++src/password.cpp:36:9: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/password.cpp:46:7: warning: variable name 'ok' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:50:15: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:68:21: warning: 2 adjacent parameters of 'verifyPassword' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/password.cpp:73:17: warning: variable name 'p' is too short, expected at least 3 characters [readability-identifier-length]
++src/password.cpp:81:49: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:88:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:89:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/password.cpp:90:64: warning: statement should be inside braces [readability-braces-around-statements]
++src/password.cpp:91:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:14:31: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:8:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/penalty_strategy.cpp:9:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:122:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:145:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:147:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:148:36: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:154:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:156:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:157:35: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:169:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:16:42: warning: 2 adjacent parameters of 'login' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_accounts.cpp:170:20: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_accounts.cpp:173:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:174:34: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/services_accounts.cpp:174:63: warning: unchecked access to optional value [bugprone-unchecked-optional-access]
++src/services_accounts.cpp:174:9: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:19:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:20:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:44:52: warning: 2 adjacent parameters of 'changePassword' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_accounts.cpp:51:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:72:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:85:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:94:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_accounts.cpp:95:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:123:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:124:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:136:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:13:37: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:141:36: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:144:32: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:14:15: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:15:30: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:16:15: warning: variable name 'b' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:170:29: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:171:36: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:172:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:173:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:180:16: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:205:14: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:218:20: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:219:20: warning: variable name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:223:14: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:225:12: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:226:51: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:239:53: warning: 2 adjacent parameters of 'mark' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:243:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:244:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:245:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:250:15: warning: variable name 'fb' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:259:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:266:10: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:27:38: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:307:22: warning: do not use static_cast to downcast from a base to a derived class; use dynamic_cast instead [cppcoreguidelines-pro-type-static-cast-downcast]
++src/services_work.cpp:309:12: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:310:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:312:19: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:327:14: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:340:22: warning: do not use static_cast to downcast from a base to a derived class; use dynamic_cast instead [cppcoreguidelines-pro-type-static-cast-downcast]
++src/services_work.cpp:341:26: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:346:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:348:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:355:49: warning: 2 adjacent parameters of 'adjust' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:357:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:365:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:36:41: warning: 2 adjacent parameters of 'createAssignment' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:374:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:380:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:388:10: warning: variable name 'l' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:38:41: warning: 2 adjacent parameters of 'createAssignment' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:390:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:40:38: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:44:15: warning: variable name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:48:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:52:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:53:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:67:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:68:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/services_work.cpp:89:15: warning: variable name 'tx' is too short, expected at least 3 characters [readability-identifier-length]
++src/services_work.cpp:95:40: warning: 4 adjacent parameters of 'writeExtension' of convertible types are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/services_work.cpp:99:13: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:107:38: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:108:11: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:127:49: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:128:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:138:53: warning: parameter name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:139:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:148:58: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:149:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:152:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:158:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:161:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:166:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:169:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:174:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:176:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:182:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:188:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:193:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:200:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:206:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:210:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:215:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:219:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:224:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:22:24: warning: parameter name 'v' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:231:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:239:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:247:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:24:38: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:254:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:25:14: warning: variable name 'u' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:260:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:265:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:271:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:276:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:281:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:286:55: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:287:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:296:64: warning: parameter name 'id' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:297:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:300:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:305:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:309:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:314:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:321:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:327:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:332:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:333:13: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:344:12: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:344:55: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:345:8: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:346:10: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:350:55: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:351:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:364:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:368:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:36:13: warning: variable 'kUserCols' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/sqlite_repository.cpp:373:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:376:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:380:56: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:381:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:389:60: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:390:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:398:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:39:40: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:407:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:40:14: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:413:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:416:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:420:49: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:421:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:435:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:435:57: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:436:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:437:7: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:442:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:447:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:452:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:457:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:462:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:468:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:473:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:478:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:483:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:487:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:48:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:492:49: warning: parameter name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:493:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:499:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:499:59: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:49:14: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:500:25: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:500:65: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:501:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:501:59: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:507:13: warning: variable name 'st' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:514:16: warning: variable name 'e' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:518:17: warning: variable name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:519:22: warning: variable name 'x' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:523:28: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:525:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:526:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:527:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:60:13: warning: variable 'kAssignmentCols' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/sqlite_repository.cpp:64:44: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:65:14: warning: variable name 'x' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:74:13: warning: variable 'kSubmissionCols' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/sqlite_repository.cpp:77:36: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:78:12: warning: variable name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:7:34: warning: parameter name 'a' is too short, expected at least 3 characters [readability-identifier-length]
++src/sqlite_repository.cpp:87:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:88:27: warning: statement should be inside braces [readability-braces-around-statements]
++src/sqlite_repository.cpp:92:13: warning: variable 'kMarkCols' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/sqlite_repository.cpp:97:13: warning: variable 'kMarkRowSql' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables]
++src/types.cpp:11:27: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:21:33: warning: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:31:35: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:32:20: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:33:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:34:18: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:35:22: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:39:47: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:40:21: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:41:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:42:24: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:43:23: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:47:29: warning: parameter name 't' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:48:15: warning: variable name 'tt' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:48:3: warning: use auto when initializing with a cast to avoid duplicating the type name [modernize-use-auto]
++src/types.cpp:49:11: warning: variable name 'tm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:51:3: warning: do not declare C-style arrays, use std::array<> instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++src/types.cpp:52:17: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:52:3: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:52:3: warning: the value returned by this function should not be disregarded; neglecting it may lead to errors [cert-err33-c]
++src/types.cpp:55:10: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:59:14: warning: variable name 'mo' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:59:22: warning: variable name 'd' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:59:29: warning: variable name 'h' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:59:36: warning: variable name 'mi' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:59:3: warning: multiple declarations in a single statement reduces readability [readability-isolate-declaration]
++src/types.cpp:59:44: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:59:7: warning: variable name 'y' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:60:11: warning: 'sscanf' used to convert a string to an integer value, but function will not report conversion errors; consider using 'strtol' instead [cert-err34-c]
++src/types.cpp:60:11: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:60:7: warning: variable name 'n' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:62:13: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:63:14: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:68:11: warning: variable name 'tm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:75:15: warning: variable name 'tt' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:92:31: warning: parameter name 'm' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:93:3: warning: do not declare C-style arrays, use std::array<> instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays]
++src/types.cpp:94:17: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:94:3: warning: do not call c-style vararg functions [cppcoreguidelines-pro-type-vararg]
++src/types.cpp:94:3: warning: the value returned by this function should not be disregarded; neglecting it may lead to errors [cert-err33-c]
++src/types.cpp:95:15: warning: variable name 's' is too short, expected at least 3 characters [readability-identifier-length]
++src/types.cpp:95:19: warning: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay]
++src/types.cpp:96:40: warning: statement should be inside braces [readability-braces-around-statements]
++src/types.cpp:97:37: warning: statement should be inside braces [readability-braces-around-statements]
++src/user.cpp:19:43: warning: 2 adjacent parameters of 'create' of similar type ('const std::string &') are easily swapped by mistake [bugprone-easily-swappable-parameters]
++src/user.cpp:24:13: warning: variable name 'c' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:25:10: warning: variable name 'ok' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:27:13: warning: statement should be inside braces [readability-braces-around-statements]
++src/user.cpp:33:14: warning: variable name 'r' is too short, expected at least 3 characters [readability-identifier-length]
++src/user.cpp:41:65: warning: parameter name 'r' is too short, expected at least 3 characters [readability-identifier-length]
+diff --git a/docs/week6/evidence/complexity-top.txt b/docs/week6/evidence/complexity-top.txt
+new file mode 100644
+index 0000000..4d2142d
+--- /dev/null
++++ b/docs/week6/evidence/complexity-top.txt
+@@ -0,0 +1,16 @@
++      60     10    447      2      60 main@20-79@src/main.cpp
++      45     10    339      4      47 lms::SubmissionService::submit@174-220@src/services_work.cpp
++      26     10    244      2      27 lms::verifyPassword@68-94@src/password.cpp
++      23     10    257      1      25 lms::parseTime@64-88@src/types.cpp
++      95      9    827      1      95 lms::ConsoleUi::adminMenu@151-245@src/console_ui.cpp
++      34      9    225      4      34 lms::AssignmentService::extendForClass@129-162@src/services_work.cpp
++      30      9    231      5      31 lms::AssignmentService::grantExtension@63-93@src/services_work.cpp
++      27      9    216      6      27 lms::AssignmentService::createAssignment@35-61@src/services_work.cpp
++       5      9     58      1       5 lms::allowedUsernameChar@22-26@src/user.cpp
++      27      8    197      2      27 lms::AuthService::login@16-42@src/services_accounts.cpp
++      19      8    185      2      19 lms::ConsoleUi::choose@56-74@src/console_ui.cpp
++      18      8    164      2      18 lms::ModerationService::loadFor@324-341@src/services_work.cpp
++==========================================================================================
++Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
++------------------------------------------------------------------------------------------
++      2527       9.6     2.6       81.9      190            0      0.00    0.00
+diff --git a/docs/week6/evidence/performance-results.json b/docs/week6/evidence/performance-results.json
+new file mode 100644
+index 0000000..17e210c
+--- /dev/null
++++ b/docs/week6/evidence/performance-results.json
+@@ -0,0 +1,804 @@
++{
++ "Start program and open database": {
++  "n": 120,
++  "min": 0.00263319200001888,
++  "median": 0.0031251879999842913,
++  "mean": 0.003107488808332448,
++  "p95": 0.0035323749999633947,
++  "max": 0.00430835500003468,
++  "output_lines": null,
++  "raw": [
++   0.0032798739999861937,
++   0.0029102839999950447,
++   0.0028386950000367506,
++   0.0027448039999740104,
++   0.002727004999997007,
++   0.0032295369999815193,
++   0.0032048790000089866,
++   0.0031700160000127653,
++   0.00316467099997908,
++   0.0031418739999935497,
++   0.0028543279999553306,
++   0.0031837820000077954,
++   0.003169775000003483,
++   0.0038656609999634384,
++   0.003198709000002964,
++   0.0027947449999601304,
++   0.00263319200001888,
++   0.003336459999957242,
++   0.0031830780000063896,
++   0.002960701999995763,
++   0.003106681000019762,
++   0.0028359949999980927,
++   0.0026962890000277184,
++   0.003314090000003489,
++   0.0031750279999869235,
++   0.002999478999981875,
++   0.0028604270000300858,
++   0.002892191000000821,
++   0.0029498399999852154,
++   0.003231430999960594,
++   0.0034268520000182434,
++   0.0030087500000490763,
++   0.0029564199999754237,
++   0.0028172030000064296,
++   0.0027252509999584618,
++   0.0032487940000009985,
++   0.0037481479999996736,
++   0.0035151470000300833,
++   0.002870267000048443,
++   0.0029017169999860926,
++   0.0027626830000144764,
++   0.003269442999965122,
++   0.0032089009999936025,
++   0.003090505000045596,
++   0.0031601219999970454,
++   0.0028375040000128138,
++   0.002942852000046514,
++   0.00311606899998651,
++   0.003168468000012581,
++   0.0030998029999977916,
++   0.003224923999994189,
++   0.002913282999998046,
++   0.003390782999986186,
++   0.003289250000023003,
++   0.00323223399999506,
++   0.0030061009999826638,
++   0.00317354300000261,
++   0.0029225500000507054,
++   0.002803734999986318,
++   0.0033135209999954895,
++   0.003572856000005231,
++   0.003179197999997996,
++   0.00430835500003468,
++   0.0028930059999652258,
++   0.0029468349999888233,
++   0.003301679999992757,
++   0.0034934789999852,
++   0.003332638000017596,
++   0.0034623749999695974,
++   0.0031122930000151428,
++   0.0030027650000192807,
++   0.0033594340000036027,
++   0.003160682999975961,
++   0.003204154999991715,
++   0.0031658409999977266,
++   0.0028645009999763715,
++   0.002847432999999455,
++   0.0034218399999872418,
++   0.003118416999996043,
++   0.002817913999990651,
++   0.002867074999983288,
++   0.0027953690000117604,
++   0.0027316680000240012,
++   0.0032855019999828983,
++   0.0032407510000211914,
++   0.0034049449999997705,
++   0.003191578999974354,
++   0.002744204999999056,
++   0.0026692890000390435,
++   0.003906626000002689,
++   0.003366387999960807,
++   0.00307143800000631,
++   0.003156203000003188,
++   0.002819771999952536,
++   0.00279573000000255,
++   0.0033514309999986835,
++   0.0032264320000194857,
++   0.0032095390000108637,
++   0.0029538549999870156,
++   0.002814002999969034,
++   0.0026357489999782047,
++   0.0032030450000206656,
++   0.0035323749999633947,
++   0.0031343420000098376,
++   0.0031319589999725395,
++   0.002792964999969172,
++   0.0028760889999830397,
++   0.003384094000011828,
++   0.003410665999979301,
++   0.0030372909999982767,
++   0.0028893229999766845,
++   0.0028083980000133124,
++   0.00293332400002555,
++   0.0033512800000039533,
++   0.0032359550000364834,
++   0.002990606000025764,
++   0.0030752170000027945,
++   0.0027815740000391997,
++   0.0029232500000375694,
++   0.0038053119999972296
++  ]
++ },
++ "Login (student)": {
++  "n": 20,
++  "min": 0.025292916000012156,
++  "median": 0.026097706000001608,
++  "mean": 0.02615721090000136,
++  "p95": 0.02711126100001593,
++  "max": 0.027839042999971753,
++  "output_lines": null,
++  "raw": [
++   0.027839042999971753,
++   0.025778337000019746,
++   0.0264623300000153,
++   0.026032240000006368,
++   0.025877017999960117,
++   0.0264185780000048,
++   0.025517095999987305,
++   0.026075671000000966,
++   0.025707924000016646,
++   0.025292916000012156,
++   0.025734630999977526,
++   0.026468216000012035,
++   0.026182515000016338,
++   0.025728855000011208,
++   0.026185731999987638,
++   0.026283368000008522,
++   0.02597167199996875,
++   0.026357074000031844,
++   0.02711126100001593,
++   0.02611974100000225
++  ]
++ },
++ "Student: list my assignments": {
++  "n": 20,
++  "min": 0.016240173000028335,
++  "median": 0.018636349500013694,
++  "mean": 0.018466047449999225,
++  "p95": 0.019243980999988253,
++  "max": 0.019323459000020193,
++  "output_lines": 434,
++  "raw": [
++   0.01865699899997253,
++   0.016240173000028335,
++   0.019207986999958848,
++   0.0188353639999832,
++   0.018230915000003733,
++   0.01873098500004744,
++   0.01840778399997589,
++   0.01863352000003715,
++   0.018639178999990236,
++   0.018227969999998095,
++   0.019323459000020193,
++   0.019243980999988253,
++   0.018929795000019567,
++   0.016879007,
++   0.018290563999983078,
++   0.01876027299999805,
++   0.018595424000011462,
++   0.018759881999983463,
++   0.01858131400001639,
++   0.018146373999968546
++  ]
++ },
++ "Student: view my released marks": {
++  "n": 20,
++  "min": 0.044990955999992366,
++  "median": 0.04677075150001997,
++  "mean": 0.04683025970000472,
++  "p95": 0.04830170600001793,
++  "max": 0.04893408800000998,
++  "output_lines": 743,
++  "raw": [
++   0.0466239319999886,
++   0.04690276600001653,
++   0.04826148799998009,
++   0.045899011000017254,
++   0.04607582099998808,
++   0.045599568999989515,
++   0.0479977079999685,
++   0.04893408800000998,
++   0.0471956060000025,
++   0.044990955999992366,
++   0.04673698200002718,
++   0.04718956499999649,
++   0.04830170600001793,
++   0.045758664999993925,
++   0.04799975700001369,
++   0.04589649299998655,
++   0.046804521000012755,
++   0.04761594900003274,
++   0.04589309300001787,
++   0.0459275180000418
++  ]
++ },
++ "Student: submit work": {
++  "n": 20,
++  "min": 0.0012864010000157577,
++  "median": 0.0015165795000200433,
++  "mean": 0.0015506622500026878,
++  "p95": 0.0017871100000093065,
++  "max": 0.0020306589999563585,
++  "output_lines": 9,
++  "raw": [
++   0.0014573689999792805,
++   0.001467167999976482,
++   0.001300748999994994,
++   0.0020306589999563585,
++   0.0016358210000362305,
++   0.0015600319999862222,
++   0.001659188000019185,
++   0.0014868009999986498,
++   0.0015085600000475097,
++   0.001737388000037754,
++   0.0015245989999925769,
++   0.001365963000012016,
++   0.0016456459999858453,
++   0.0017871100000093065,
++   0.001660393000008753,
++   0.001653964000013275,
++   0.0014065469999877678,
++   0.0012864010000157577,
++   0.0014911269999515753,
++   0.001347760000044218
++  ]
++ },
++ "Login (lecturer)": {
++  "n": 40,
++  "min": 0.022646673999986433,
++  "median": 0.02569347850001691,
++  "mean": 0.026042219225003292,
++  "p95": 0.028364000999999917,
++  "max": 0.02888815500000419,
++  "output_lines": null,
++  "raw": [
++   0.02778355000003785,
++   0.026141634999987673,
++   0.025493429999983164,
++   0.025350510999999187,
++   0.028364000999999917,
++   0.025881885999979204,
++   0.026286468000023433,
++   0.02619425699998601,
++   0.02717392699997845,
++   0.025437747000012223,
++   0.025436891000026662,
++   0.025670106000006854,
++   0.026895242999955826,
++   0.026533626999992066,
++   0.025773578000041653,
++   0.02529558599997017,
++   0.02563842500001101,
++   0.02539005400001315,
++   0.025222220000046036,
++   0.024983453000004374,
++   0.025594849000015074,
++   0.028771468000002187,
++   0.026560520999964865,
++   0.02888815500000419,
++   0.026758179000012206,
++   0.025688514000023588,
++   0.022646673999986433,
++   0.025525519000041186,
++   0.026410278000014387,
++   0.02569844300001023,
++   0.024820275999957175,
++   0.026302698999984386,
++   0.026361888000053568,
++   0.025454110999987734,
++   0.025593152999988433,
++   0.025397149000013997,
++   0.026872023999999328,
++   0.025638737000008405,
++   0.025635512999997445,
++   0.026124024000012014
++  ]
++ },
++ "Lecturer: list work waiting to be marked": {
++  "n": 20,
++  "min": 0.08894531100003178,
++  "median": 0.09408869650002316,
++  "mean": 0.09703573870000355,
++  "p95": 0.10165044399997214,
++  "max": 0.1417344650000132,
++  "output_lines": 1611,
++  "raw": [
++   0.09976389100000915,
++   0.093787873999986,
++   0.09800732999997308,
++   0.09344715399998904,
++   0.09487646700000596,
++   0.09138124300000072,
++   0.0953534770000033,
++   0.09190854700000273,
++   0.09322806100004755,
++   0.08894531100003178,
++   0.1417344650000132,
++   0.10165044399997214,
++   0.0942647200000124,
++   0.09222792399998525,
++   0.09164555900002824,
++   0.09644175999994786,
++   0.09791773799997827,
++   0.09391267300003392,
++   0.09695644100003165,
++   0.09326369500001874
++  ]
++ },
++ "Lecturer: mark a submission": {
++  "n": 20,
++  "min": 0.0011210310000251411,
++  "median": 0.001480145999977367,
++  "mean": 0.0014951977000038142,
++  "p95": 0.0018921310000337144,
++  "max": 0.0019258700000364115,
++  "output_lines": 11,
++  "raw": [
++   0.0013050040000166518,
++   0.0016639929999655578,
++   0.0011762539999722321,
++   0.0013472620000243296,
++   0.0018283520000181852,
++   0.0019258700000364115,
++   0.0014077739999720507,
++   0.001268438000010974,
++   0.0014819969999848581,
++   0.0016015450000281817,
++   0.0016485070000271662,
++   0.0018921310000337144,
++   0.001573118000010254,
++   0.0015884700000015073,
++   0.0015449599999897146,
++   0.0014782949999698758,
++   0.0011210310000251411,
++   0.001317720000031386,
++   0.0013285370000062358,
++   0.001404695999951855
++  ]
++ },
++ "Lecturer: create assignment": {
++  "n": 20,
++  "min": 0.0006976189999932103,
++  "median": 0.0008184080000148697,
++  "mean": 0.000871358550003265,
++  "p95": 0.001242429000001266,
++  "max": 0.0014625040000169065,
++  "output_lines": 11,
++  "raw": [
++   0.0014625040000169065,
++   0.0007811950000018442,
++   0.0008244580000109636,
++   0.0007297020000009979,
++   0.000858373000028223,
++   0.0008059259999981805,
++   0.0008187500000076398,
++   0.0007371969999780958,
++   0.0007394680000061271,
++   0.0010225150000451322,
++   0.0010444880000477497,
++   0.0009135919999607722,
++   0.0008212230000026466,
++   0.0008635959999878651,
++   0.0007774050000080024,
++   0.001242429000001266,
++   0.0007547949999775483,
++   0.0007138699999700293,
++   0.0008180660000220996,
++   0.0006976189999932103
++  ]
++ },
++ "Lecturer: extension for one student": {
++  "n": 20,
++  "min": 0.0007816709999701743,
++  "median": 0.0009194439999760107,
++  "mean": 0.0009196325999909049,
++  "p95": 0.0010364290000097753,
++  "max": 0.001186822999954984,
++  "output_lines": 11,
++  "raw": [
++   0.0010364290000097753,
++   0.0009325350000040089,
++   0.000827490000006037,
++   0.0007816709999701743,
++   0.0008822070000178428,
++   0.0009163859999716806,
++   0.0009667819999776839,
++   0.0008867999999893073,
++   0.000787390000027699,
++   0.0009225019999803408,
++   0.001186822999954984,
++   0.000977129999967019,
++   0.00099902499999871,
++   0.0009139559999766789,
++   0.0008593059999952857,
++   0.0009727979999638592,
++   0.0007825069999967127,
++   0.0008092890000170883,
++   0.0009521400000380709,
++   0.0009994859999551409
++  ]
++ },
++ "Lecturer: extension for the whole class (800 students)": {
++  "n": 20,
++  "min": 0.029284512000003815,
++  "median": 0.031433049000042956,
++  "mean": 0.03201958090000687,
++  "p95": 0.03903831600001695,
++  "max": 0.039347849999956,
++  "output_lines": 11,
++  "raw": [
++   0.031289701999980934,
++   0.03161397000002353,
++   0.029284512000003815,
++   0.029396482999970885,
++   0.031462466000050426,
++   0.030550036000022374,
++   0.03072764000000916,
++   0.030046981999987565,
++   0.03132368400002861,
++   0.030799140999988595,
++   0.031958138999982566,
++   0.03903831600001695,
++   0.03202229100003251,
++   0.032275673000015104,
++   0.03132649899998796,
++   0.031403632000035486,
++   0.03196265500002937,
++   0.031558082999993076,
++   0.039347849999956,
++   0.03300386400002253
++  ]
++ },
++ "Login (HoD)": {
++  "n": 20,
++  "min": 0.02533240799999703,
++  "median": 0.02625636100000861,
++  "mean": 0.026344642350008485,
++  "p95": 0.027484549999996943,
++  "max": 0.028688477000002877,
++  "output_lines": null,
++  "raw": [
++   0.026274668000041856,
++   0.026238053999975364,
++   0.02554104300003246,
++   0.02533240799999703,
++   0.027484549999996943,
++   0.026939720000029865,
++   0.02553880600004277,
++   0.026306258000033722,
++   0.02618756399999711,
++   0.026975223000022197,
++   0.026599554000029002,
++   0.028688477000002877,
++   0.026444970000000012,
++   0.02640911599996798,
++   0.02573032200001535,
++   0.02563995899998872,
++   0.02717288200000212,
++   0.025511074999997163,
++   0.026191326000002846,
++   0.02568687199999431
++  ]
++ },
++ "HoD: list marks waiting for moderation": {
++  "n": 20,
++  "min": 0.022703718999991906,
++  "median": 0.023976281500011964,
++  "mean": 0.024347893850011813,
++  "p95": 0.026901956000017435,
++  "max": 0.029178867999974045,
++  "output_lines": 12811,
++  "raw": [
++   0.024333032000015464,
++   0.023782814000014696,
++   0.022703718999991906,
++   0.023369220000006408,
++   0.024743681000018114,
++   0.023939671999983148,
++   0.024180438000030335,
++   0.023274938000042766,
++   0.029178867999974045,
++   0.02436814000003551,
++   0.024149055999998836,
++   0.026901956000017435,
++   0.025020175999998173,
++   0.02401289100004078,
++   0.024767849999989267,
++   0.02378460600004928,
++   0.02336530899998479,
++   0.023554144999991422,
++   0.023674194000022908,
++   0.02385317200003101
++  ]
++ },
++ "HoD: approve a mark": {
++  "n": 20,
++  "min": 0.0011618860000339737,
++  "median": 0.001370701000041663,
++  "mean": 0.0014249312000089275,
++  "p95": 0.0017843819999825428,
++  "max": 0.0018340280000188613,
++  "output_lines": 10,
++  "raw": [
++   0.0012204440000118666,
++   0.0017843819999825428,
++   0.0012959700000010344,
++   0.0013858270000355333,
++   0.0014979850000145234,
++   0.0015707740000152626,
++   0.0014848550000010619,
++   0.0013285949999612967,
++   0.0015757360000066,
++   0.00135039299999562,
++   0.0013555750000477929,
++   0.0011618860000339737,
++   0.0012144930000204113,
++   0.0014382580000074086,
++   0.0018340280000188613,
++   0.0013158510000153,
++   0.0012533600000210754,
++   0.001491747999978088,
++   0.0016399720000208617,
++   0.0012984919999894373
++  ]
++ },
++ "HoD: release a mark": {
++  "n": 20,
++  "min": 0.0008275519999756398,
++  "median": 0.0009523979999812582,
++  "mean": 0.0009461340999962431,
++  "p95": 0.0010412500000143154,
++  "max": 0.0011281249999797183,
++  "output_lines": 10,
++  "raw": [
++   0.0010106189999987691,
++   0.0008914039999581291,
++   0.0008702970000058485,
++   0.0008275519999756398,
++   0.0009493910000060168,
++   0.0009691840000414231,
++   0.0009554049999564995,
++   0.0009284460000458239,
++   0.0010052260000179558,
++   0.000982109999995373,
++   0.0010216109999987566,
++   0.0008995519999643875,
++   0.0011281249999797183,
++   0.0010412500000143154,
++   0.0009884620000093491,
++   0.0008645400000091286,
++   0.0008678119999672163,
++   0.0008716650000337722,
++   0.0010071339999626616,
++   0.0008428969999840774
++  ]
++ },
++ "Login (admin)": {
++  "n": 20,
++  "min": 0.024863796000033744,
++  "median": 0.02608901549999132,
++  "mean": 0.026394844949996353,
++  "p95": 0.029868991000000733,
++  "max": 0.030927216999998564,
++  "output_lines": null,
++  "raw": [
++   0.027063175999956002,
++   0.026790035000033185,
++   0.02562916699997686,
++   0.025105977000009716,
++   0.026255697000010514,
++   0.025082026000006863,
++   0.025623671999994713,
++   0.026558814999987135,
++   0.029868991000000733,
++   0.02610114800000929,
++   0.02630434200000309,
++   0.030927216999998564,
++   0.027480378000007022,
++   0.024863796000033744,
++   0.02625849499997912,
++   0.025380793000010726,
++   0.025605644999984634,
++   0.024891793999984202,
++   0.02607688299997335,
++   0.026028851999967628
++  ]
++ },
++ "Admin: create user": {
++  "n": 20,
++  "min": 0.025288783000007697,
++  "median": 0.026426203999989184,
++  "mean": 0.026912569049997614,
++  "p95": 0.029676026000004185,
++  "max": 0.030474658999992243,
++  "output_lines": 19,
++  "raw": [
++   0.027634930999965945,
++   0.027886313999999857,
++   0.026135320000037154,
++   0.025288783000007697,
++   0.026690255000005436,
++   0.026088140000013027,
++   0.02563367999999855,
++   0.027616994000027262,
++   0.030474658999992243,
++   0.02619164799995133,
++   0.02545272899999418,
++   0.028559558999972978,
++   0.026821777000009206,
++   0.025995668999996724,
++   0.02636166500002446,
++   0.02649074299995391,
++   0.026236737000033372,
++   0.029676026000004185,
++   0.026319193999995605,
++   0.026696557999969173
++  ]
++ },
++ "Admin: list users": {
++  "n": 20,
++  "min": 0.0008174680000365697,
++  "median": 0.0008570540000221172,
++  "mean": 0.000876371450010538,
++  "p95": 0.0009456810000187943,
++  "max": 0.0010037350000402512,
++  "output_lines": 849,
++  "raw": [
++   0.0008776789999842549,
++   0.0008481390000270039,
++   0.0008174680000365697,
++   0.0008634699999561235,
++   0.0008488280000165105,
++   0.0008370780000177547,
++   0.0008534629999985555,
++   0.0009304899999733607,
++   0.0009213899999735986,
++   0.0008606450000456789,
++   0.0008382530000403676,
++   0.0010037350000402512,
++   0.000847095000040099,
++   0.0008530320000090796,
++   0.0008350549999818213,
++   0.0009119149999605725,
++   0.0008242670000413455,
++   0.0009456810000187943,
++   0.0008742260000076385,
++   0.0009355200000413788
++  ]
++ },
++ "Admin: enrol student": {
++  "n": 20,
++  "min": 0.0007113800000411175,
++  "median": 0.0007963064999785274,
++  "mean": 0.0008045148000007885,
++  "p95": 0.0009054280000100334,
++  "max": 0.0009345469999857414,
++  "output_lines": 19,
++  "raw": [
++   0.0007579389999818886,
++   0.000750465000010081,
++   0.0008349619999989955,
++   0.0007113800000411175,
++   0.0007727509999995164,
++   0.0007899980000161122,
++   0.0008345979999830888,
++   0.0007905350000214639,
++   0.0009054280000100334,
++   0.0007961399999771857,
++   0.0008128599999963626,
++   0.0008237850000227809,
++   0.000833870000008119,
++   0.0008825860000456487,
++   0.0007964729999798692,
++   0.0007129769999778546,
++   0.0007317779999880258,
++   0.000792380999996567,
++   0.0009345469999857414,
++   0.0008248429999753171
++  ]
++ },
++ "Admin: back up database (158 MB)": {
++  "n": 20,
++  "min": 0.6065499449999834,
++  "median": 0.655956376000006,
++  "mean": 0.6554323540500036,
++  "p95": 0.6860841739999728,
++  "max": 0.7433824220000247,
++  "output_lines": 19,
++  "raw": [
++   0.669097837000038,
++   0.6330794360000027,
++   0.6367593960000022,
++   0.6065499449999834,
++   0.62561904100005,
++   0.685216529999991,
++   0.6860841739999728,
++   0.6221493069999724,
++   0.6808213699999897,
++   0.66257410999998,
++   0.6552960249999842,
++   0.6566167270000278,
++   0.6463285990000145,
++   0.6454657290000227,
++   0.6552759239999659,
++   0.6095785480000018,
++   0.6661573310000222,
++   0.7433824220000247,
++   0.66013375,
++   0.662460880000026
++  ]
++ },
++ "Login (admin (audit))": {
++  "n": 20,
++  "min": 0.024993406000021423,
++  "median": 0.02602941700001793,
++  "mean": 0.026296500500012598,
++  "p95": 0.02783281500001067,
++  "max": 0.029338144999996985,
++  "output_lines": null,
++  "raw": [
++   0.027415657000005922,
++   0.0257559650000303,
++   0.026355214000034266,
++   0.026416464000021733,
++   0.02573732200005452,
++   0.02647788199999468,
++   0.025873174000025756,
++   0.026185660000010103,
++   0.02504849400003195,
++   0.024993406000021423,
++   0.025808219999987614,
++   0.02783281500001067,
++   0.027716939000015373,
++   0.02644443899998805,
++   0.029338144999996985,
++   0.025573347000033664,
++   0.02524224299997968,
++   0.025456307000013112,
++   0.025774458000000777,
++   0.02648385899999539
++  ]
++ },
++ "Admin: view audit log (about 608,000 entries)": {
++  "n": 20,
++  "min": 1.8753783700000213,
++  "median": 1.9479209749999882,
++  "mean": 1.9566193607999907,
++  "p95": 2.0446221889999947,
++  "max": 2.047326177000002,
++  "output_lines": 624098,
++  "raw": [
++   1.9392005109999673,
++   1.9197887980000132,
++   1.8753783700000213,
++   1.9002471199999604,
++   1.9586314450000373,
++   1.8874964769999565,
++   1.9192434869999602,
++   1.9661582210000006,
++   1.925159267999959,
++   1.911002580999991,
++   1.9513985570000045,
++   2.0446221889999947,
++   1.9444433929999718,
++   1.910527473000002,
++   1.9840131130000032,
++   2.005882112999984,
++   2.0396226439999623,
++   1.986039656999992,
++   2.0162056220000295,
++   2.047326177000002
++  ]
++ }
++}
+\ No newline at end of file
+diff --git a/include/lms/console_ui.hpp b/include/lms/console_ui.hpp
+index 9189d1b..e141859 100644
+--- a/include/lms/console_ui.hpp
++++ b/include/lms/console_ui.hpp
+@@ -1,8 +1,10 @@
+ #pragma once
+ 
++#include <functional>
+ #include <iosfwd>
+ #include <memory>
+ #include <string>
++#include <vector>
+ 
+ #include "lms/database.hpp"
+ #include "lms/services.hpp"
+@@ -33,6 +35,15 @@ class ConsoleUi {
+   void run();
+ 
+  private:
++  /// Opens the menu that belongs to the role of the user.
++  void menuFor(const User& user);
++  struct MenuItem {
++    std::string label;
++    std::function<void()> action;
++  };
++  void runMenu(const std::string& title, const std::vector<MenuItem>& items);
++  void showAssignments(const User& user);
++  void submitWork(const User& user);
+   void adminMenu(const User& user);
+   void lecturerMenu(const User& user);
+   void hodMenu(const User& user);
+@@ -52,6 +63,7 @@ class ConsoleUi {
+   Services s_;
+   std::istream& in_;
+   std::ostream& out_;
++  bool leaveMenu_ = false;  // set by an action that ends the menu
+ };
+ 
+ }  // namespace lms
+diff --git a/include/lms/penalty_strategy.hpp b/include/lms/penalty_strategy.hpp
+index 88cd822..52d71e0 100644
+--- a/include/lms/penalty_strategy.hpp
++++ b/include/lms/penalty_strategy.hpp
+@@ -15,7 +15,7 @@ class PenaltyStrategy {
+ /// whole mark is lost.
+ class StandardPenaltyStrategy final : public PenaltyStrategy {
+  public:
+-  StandardPenaltyStrategy(int percentPerDay = 10, int maxDays = 3)
++  explicit StandardPenaltyStrategy(int percentPerDay = 10, int maxDays = 3)
+       : percentPerDay_(percentPerDay), maxDays_(maxDays) {}
+   double penalty(int daysLate, int maxMark) const override;
+ 
+diff --git a/include/lms/repositories.hpp b/include/lms/repositories.hpp
+index db892a7..f3a96c6 100644
+--- a/include/lms/repositories.hpp
++++ b/include/lms/repositories.hpp
+@@ -27,6 +27,7 @@ class Transaction {
+       try {
+         uow_.rollback();
+       } catch (...) {
++        // a destructor must not throw, and the rollback has nothing left to undo
+       }
+     }
+   }
+diff --git a/include/lms/services.hpp b/include/lms/services.hpp
+index 7819eaf..64b6cbc 100644
+--- a/include/lms/services.hpp
++++ b/include/lms/services.hpp
+@@ -97,6 +97,11 @@ class AssignmentService {
+   /// and holds the transaction.
+   void writeExtension(int lecturerId, int assignmentId, int studentId,
+                       Time current, Time newDeadline, const std::string& reason);
++  /// True when this student should get a class extension. Not once the work
++  /// is marked (BR4), and never when it would make the deadline earlier.
++  /// Gives back the deadline the student has now in `current`.
++  bool classExtensionApplies(int assignmentId, int studentId, Time newDeadline,
++                             Time& current);
+ 
+   IAssignmentRepository& assignments_;
+   ICourseRepository& courses_;
+@@ -205,7 +210,7 @@ class ModerationService {
+  private:
+   struct Loaded {
+     Mark mark;
+-    int maxMark;
++    int maxMark = 0;
+   };
+   Loaded loadFor(const User& hod, int submissionId);
+   void record(const User& hod, int submissionId, AuditAction action,
+diff --git a/src/console_ui.cpp b/src/console_ui.cpp
+index dc93389..9347547 100644
+--- a/src/console_ui.cpp
++++ b/src/console_ui.cpp
+@@ -1,6 +1,8 @@
+ #include "lms/console_ui.hpp"
+ 
++#include <algorithm>
+ #include <cstdlib>
++#include <iterator>
+ #include <iostream>
+ #include <vector>
+ 
+@@ -90,6 +92,15 @@ void ConsoleUi::printMarkRows(const std::vector<MarkRow>& rows) {
+   }
+ }
+ 
++void ConsoleUi::menuFor(const User& user) {
++  switch (user.role()) {
++    case Role::kAdmin: adminMenu(user); break;
++    case Role::kLecturer: lecturerMenu(user); break;
++    case Role::kHod: hodMenu(user); break;
++    case Role::kStudent: studentMenu(user); break;
++  }
++}
++
+ void ConsoleUi::run() {
+   out_ << "Moderated LMS\n";
+   while (true) {
+@@ -107,12 +118,7 @@ void ConsoleUi::run() {
+     }
+     out_ << "Welcome, " << user->fullName() << ".\n";
+     try {
+-      switch (user->role()) {
+-        case Role::kAdmin: adminMenu(*user); break;
+-        case Role::kLecturer: lecturerMenu(*user); break;
+-        case Role::kHod: hodMenu(*user); break;
+-        case Role::kStudent: studentMenu(*user); break;
+-      }
++      menuFor(*user);
+     } catch (const Error& e) {
+       out_ << "Error: " << e.what() << "\n";
+       return;
+@@ -120,277 +126,233 @@ void ConsoleUi::run() {
+   }
+ }
+ 
+-// Every menu has the same shape: pick an item, run it, print any Error and go
+-// back to the menu. A wrong input never ends the session.
+-void ConsoleUi::adminMenu(const User& u) {
+-  const std::vector<std::string> items = {
+-      "Create user", "List users", "Reset password and unlock",
+-      "Activate or deactivate user", "Remove a user's personal data",
+-      "Create department", "Set head of department", "Create course",
+-      "Assign lecturer to course", "Enrol student", "View audit log",
+-      "Export audit log", "Back up database", "Restore database",
+-      "Change my password"};
+-  while (true) {
+-    int c = choose("Administrator", items);
++// Every menu is a list of labelled actions. runMenu shows the list, runs the
++// chosen action and prints any Error, then goes back to the menu, so a wrong
++// input never ends the session. Keeping each action in its own small function
++// keeps the cyclomatic complexity of every function low.
++void ConsoleUi::runMenu(const std::string& title,
++                        const std::vector<MenuItem>& items) {
++  std::vector<std::string> labels;
++  labels.reserve(items.size());
++  std::transform(items.begin(), items.end(), std::back_inserter(labels),
++                 [](const MenuItem& item) { return item.label; });
++  leaveMenu_ = false;
++  while (!leaveMenu_) {
++    int c = choose(title, labels);
+     if (c <= 0) return;
+     try {
+-      switch (c) {
+-        case 1: {
+-          std::string role = ask("Role (ADMIN, LECTURER, HOD, STUDENT): ");
+-          std::string name = ask("Username: ");
+-          std::string full = ask("Full name: ");
+-          std::string pw = ask("Password: ");
+-          int id = s_.admin.createUser(u, parseRole(role), name, full, pw);
+-          out_ << "Created user " << id << ".\n";
+-          break;
+-        }
+-        case 2:
+-          for (const auto& r : s_.admin.listUsers(u)) {
+-            out_ << r.id << " | " << r.username << " | " << r.fullName << " | "
+-                 << toString(r.role) << (r.active ? "" : " | inactive")
+-                 << (r.failedLogins >= kMaxFailedLogins ? " | locked" : "")
+-                 << "\n";
+-          }
+-          break;
+-        case 3: {
+-          int id = askInt("User id: ");
+-          s_.admin.resetPassword(u, id, ask("New password: "));
+-          out_ << "Password reset and account unlocked.\n";
+-          break;
+-        }
+-        case 4: {
+-          int id = askInt("User id: ");
+-          std::string a = ask("Type ON to activate or OFF to deactivate: ");
+-          if (a != "ON" && a != "OFF") throw ValidationError("type ON or OFF");
+-          s_.admin.setActive(u, id, a == "ON");
+-          out_ << "Done.\n";
+-          break;
+-        }
+-        case 5: {
+-          int id = askInt("User id: ");
+-          if (ask("Type YES to remove this person's details: ") != "YES") {
+-            out_ << "Cancelled.\n";
+-            break;
+-          }
+-          s_.admin.anonymiseUser(u, id);
+-          out_ << "Personal data removed, marks kept.\n";
+-          break;
+-        }
+-        case 6:
+-          out_ << "Created department "
+-               << s_.admin.createDepartment(u, ask("Name: ")) << ".\n";
+-          break;
+-        case 7: {
+-          int d = askInt("Department id: ");
+-          s_.admin.assignHod(u, d, askInt("HoD user id: "));
+-          out_ << "Done.\n";
+-          break;
+-        }
+-        case 8: {
+-          int d = askInt("Department id: ");
+-          std::string code = ask("Course code: ");
+-          out_ << "Created course "
+-               << s_.admin.createCourse(u, d, code, ask("Course name: "))
+-               << ".\n";
+-          break;
+-        }
+-        case 9: {
+-          int course = askInt("Course id: ");
+-          s_.admin.assignLecturer(u, course, askInt("Lecturer user id: "));
+-          out_ << "Done.\n";
+-          break;
+-        }
+-        case 10: {
+-          int student = askInt("Student user id: ");
+-          s_.admin.enrol(u, student, askInt("Course id: "));
+-          out_ << "Enrolled.\n";
+-          break;
+-        }
+-        case 11:
+-          for (const auto& e : s_.admin.auditLog(u)) {
+-            out_ << e.id << " | " << formatTime(e.at) << " | user " << e.actorId
+-                 << " | " << toString(e.action) << " | " << e.oldValue
+-                 << " -> " << e.newValue << " | " << e.reason << "\n";
+-          }
+-          break;
+-        case 12:
+-          s_.admin.exportAudit(u, ask("File name: "));
+-          out_ << "Exported.\n";
+-          break;
+-        case 13:
+-          requireRole(u, Role::kAdmin);
+-          s_.db.backupTo(ask("Backup file name: "));
+-          out_ << "Backup written.\n";
+-          break;
+-        case 14:
+-          requireRole(u, Role::kAdmin);
+-          if (ask("This replaces all current data. Type YES to go on: ") ==
+-              "YES") {
+-            s_.db.restoreFrom(ask("Backup file name: "));
+-            out_ << "Restored. Log in again.\n";
+-            return;
+-          }
+-          out_ << "Cancelled.\n";
+-          break;
+-        case 15: changePassword(u); break;
+-        default: break;
+-      }
++      items[static_cast<std::size_t>(c) - 1].action();
+     } catch (const Error& e) {
+       out_ << "Error: " << e.what() << "\n";
+     }
+   }
+ }
+ 
++void ConsoleUi::adminMenu(const User& u) {
++  runMenu("Administrator", {
++      {"Create user", [this, &u] {
++         std::string role = ask("Role (ADMIN, LECTURER, HOD, STUDENT): ");
++         std::string name = ask("Username: ");
++         std::string full = ask("Full name: ");
++         std::string pw = ask("Password: ");
++         int id = s_.admin.createUser(u, parseRole(role), name, full, pw);
++         out_ << "Created user " << id << ".\n";
++       }},
++      {"List users", [this, &u] {
++         for (const auto& r : s_.admin.listUsers(u)) {
++           out_ << r.id << " | " << r.username << " | " << r.fullName << " | "
++                << toString(r.role) << (r.active ? "" : " | inactive")
++                << (r.failedLogins >= kMaxFailedLogins ? " | locked" : "")
++                << "\n";
++         }
++       }},
++      {"Reset password and unlock", [this, &u] {
++         int id = askInt("User id: ");
++         s_.admin.resetPassword(u, id, ask("New password: "));
++         out_ << "Password reset and account unlocked.\n";
++       }},
++      {"Activate or deactivate user", [this, &u] {
++         int id = askInt("User id: ");
++         std::string a = ask("Type ON to activate or OFF to deactivate: ");
++         if (a != "ON" && a != "OFF") throw ValidationError("type ON or OFF");
++         s_.admin.setActive(u, id, a == "ON");
++         out_ << "Done.\n";
++       }},
++      {"Remove a user's personal data", [this, &u] {
++         int id = askInt("User id: ");
++         if (ask("Type YES to remove this person's details: ") != "YES") {
++           out_ << "Cancelled.\n";
++           return;
++         }
++         s_.admin.anonymiseUser(u, id);
++         out_ << "Personal data removed, marks kept.\n";
++       }},
++      {"Create department", [this, &u] {
++         out_ << "Created department "
++              << s_.admin.createDepartment(u, ask("Name: ")) << ".\n";
++       }},
++      {"Set head of department", [this, &u] {
++         int d = askInt("Department id: ");
++         s_.admin.assignHod(u, d, askInt("HoD user id: "));
++         out_ << "Done.\n";
++       }},
++      {"Create course", [this, &u] {
++         int d = askInt("Department id: ");
++         std::string code = ask("Course code: ");
++         out_ << "Created course "
++              << s_.admin.createCourse(u, d, code, ask("Course name: "))
++              << ".\n";
++       }},
++      {"Assign lecturer to course", [this, &u] {
++         int course = askInt("Course id: ");
++         s_.admin.assignLecturer(u, course, askInt("Lecturer user id: "));
++         out_ << "Done.\n";
++       }},
++      {"Enrol student", [this, &u] {
++         int student = askInt("Student user id: ");
++         s_.admin.enrol(u, student, askInt("Course id: "));
++         out_ << "Enrolled.\n";
++       }},
++      {"View audit log", [this, &u] {
++         for (const auto& e : s_.admin.auditLog(u)) {
++           out_ << e.id << " | " << formatTime(e.at) << " | user " << e.actorId
++                << " | " << toString(e.action) << " | " << e.oldValue
++                << " -> " << e.newValue << " | " << e.reason << "\n";
++         }
++       }},
++      {"Export audit log", [this, &u] {
++         s_.admin.exportAudit(u, ask("File name: "));
++         out_ << "Exported.\n";
++       }},
++      {"Back up database", [this, &u] {
++         requireRole(u, Role::kAdmin);
++         s_.db.backupTo(ask("Backup file name: "));
++         out_ << "Backup written.\n";
++       }},
++      {"Restore database", [this, &u] {
++         requireRole(u, Role::kAdmin);
++         if (ask("This replaces all current data. Type YES to go on: ") !=
++             "YES") {
++           out_ << "Cancelled.\n";
++           return;
++         }
++         s_.db.restoreFrom(ask("Backup file name: "));
++         out_ << "Restored. Log in again.\n";
++         leaveMenu_ = true;  // the old session is gone, so go back to the login
++       }},
++      {"Change my password", [this, &u] { changePassword(u); }},
++  });
++}
++
+ void ConsoleUi::lecturerMenu(const User& u) {
+-  const std::vector<std::string> items = {
+-      "Create assignment", "Give a student an extension",
+-      "List work waiting to be marked", "Mark a submission",
+-      "List marks returned to me", "Change my password",
+-      "Give the whole class an extension"};
+-  while (true) {
+-    int c = choose("Lecturer", items);
+-    if (c <= 0) return;
+-    try {
+-      switch (c) {
+-        case 1: {
+-          int course = askInt("Course id: ");
+-          std::string title = ask("Title: ");
+-          std::string desc = ask("Description: ");
+-          Time deadline = askTime("Deadline");
+-          int id = s_.assignments.createAssignment(u, course, title, desc,
+-                                                   deadline,
+-                                                   askInt("Maximum mark: "));
+-          out_ << "Created assignment " << id << ".\n";
+-          break;
+-        }
+-        case 2: {
+-          int a = askInt("Assignment id: ");
+-          int st = askInt("Student user id: ");
+-          Time when = askTime("New deadline");
+-          s_.assignments.grantExtension(u, a, st, when, ask("Reason: "));
+-          out_ << "Extension saved.\n";
+-          break;
+-        }
+-        case 3: {
+-          auto list = s_.marking.unmarked(u);
+-          if (list.empty()) out_ << "Nothing to mark.\n";
+-          for (const auto& s : list) {
+-            out_ << "Submission " << s.id << " | assignment " << s.assignmentId
+-                 << " | student " << s.studentId << " | "
+-                 << formatTime(s.submittedAt) << "\n";
+-          }
+-          break;
+-        }
+-        case 4: {
+-          int id = askInt("Submission id: ");
+-          double raw = askNumber("Mark: ");
+-          MarkData m = s_.marking.mark(u, id, raw, ask("Feedback: "));
+-          out_ << "Saved. Days late " << m.daysLate << ", final mark "
+-               << formatMark(m.finalMark) << ".\n";
+-          break;
+-        }
+-        case 5: printMarkRows(s_.marking.returned(u)); break;
+-        case 6: changePassword(u); break;
+-        case 7: {
+-          int a = askInt("Assignment id: ");
+-          Time when = askTime("New deadline for everyone");
+-          int n = s_.assignments.extendForClass(u, a, when, ask("Reason: "));
+-          out_ << "Extension saved for " << n << " student(s).\n";
+-          break;
+-        }
+-        default: break;
+-      }
+-    } catch (const Error& e) {
+-      out_ << "Error: " << e.what() << "\n";
+-    }
+-  }
++  runMenu("Lecturer", {
++      {"Create assignment", [this, &u] {
++         int course = askInt("Course id: ");
++         std::string title = ask("Title: ");
++         std::string desc = ask("Description: ");
++         Time deadline = askTime("Deadline");
++         int id = s_.assignments.createAssignment(u, course, title, desc,
++                                                  deadline,
++                                                  askInt("Maximum mark: "));
++         out_ << "Created assignment " << id << ".\n";
++       }},
++      {"Give a student an extension", [this, &u] {
++         int a = askInt("Assignment id: ");
++         int st = askInt("Student user id: ");
++         Time when = askTime("New deadline");
++         s_.assignments.grantExtension(u, a, st, when, ask("Reason: "));
++         out_ << "Extension saved.\n";
++       }},
++      {"List work waiting to be marked", [this, &u] {
++         auto list = s_.marking.unmarked(u);
++         if (list.empty()) out_ << "Nothing to mark.\n";
++         for (const auto& s : list) {
++           out_ << "Submission " << s.id << " | assignment " << s.assignmentId
++                << " | student " << s.studentId << " | "
++                << formatTime(s.submittedAt) << "\n";
++         }
++       }},
++      {"Mark a submission", [this, &u] {
++         int id = askInt("Submission id: ");
++         double raw = askNumber("Mark: ");
++         MarkData m = s_.marking.mark(u, id, raw, ask("Feedback: "));
++         out_ << "Saved. Days late " << m.daysLate << ", final mark "
++              << formatMark(m.finalMark) << ".\n";
++       }},
++      {"List marks returned to me",
++       [this, &u] { printMarkRows(s_.marking.returned(u)); }},
++      {"Change my password", [this, &u] { changePassword(u); }},
++      {"Give the whole class an extension", [this, &u] {
++         int a = askInt("Assignment id: ");
++         Time when = askTime("New deadline for everyone");
++         int n = s_.assignments.extendForClass(u, a, when, ask("Reason: "));
++         out_ << "Extension saved for " << n << " student(s).\n";
++       }},
++  });
+ }
+ 
+ void ConsoleUi::hodMenu(const User& u) {
+-  const std::vector<std::string> items = {
+-      "List marks waiting for moderation", "Approve a mark", "Adjust a mark",
+-      "Return a mark to the lecturer", "Release an approved mark",
+-      "Change my password"};
+-  while (true) {
+-    int c = choose("Head of Department", items);
+-    if (c <= 0) return;
+-    try {
+-      switch (c) {
+-        case 1: printMarkRows(s_.moderation.listPending(u)); break;
+-        case 2:
+-          s_.moderation.approve(u, askInt("Submission id: "));
+-          out_ << "Approved.\n";
+-          break;
+-        case 3: {
+-          int id = askInt("Submission id: ");
+-          double raw = askNumber("New mark: ");
+-          s_.moderation.adjust(u, id, raw, ask("Reason: "));
+-          out_ << "Adjusted and approved.\n";
+-          break;
+-        }
+-        case 4: {
+-          int id = askInt("Submission id: ");
+-          s_.moderation.returnMark(u, id, ask("Reason: "));
+-          out_ << "Returned to the lecturer.\n";
+-          break;
+-        }
+-        case 5:
+-          s_.moderation.release(u, askInt("Submission id: "));
+-          out_ << "Released.\n";
+-          break;
+-        case 6: changePassword(u); break;
+-        default: break;
+-      }
+-    } catch (const Error& e) {
+-      out_ << "Error: " << e.what() << "\n";
+-    }
++  runMenu("Head of Department", {
++      {"List marks waiting for moderation",
++       [this, &u] { printMarkRows(s_.moderation.listPending(u)); }},
++      {"Approve a mark", [this, &u] {
++         s_.moderation.approve(u, askInt("Submission id: "));
++         out_ << "Approved.\n";
++       }},
++      {"Adjust a mark", [this, &u] {
++         int id = askInt("Submission id: ");
++         double raw = askNumber("New mark: ");
++         s_.moderation.adjust(u, id, raw, ask("Reason: "));
++         out_ << "Adjusted and approved.\n";
++       }},
++      {"Return a mark to the lecturer", [this, &u] {
++         int id = askInt("Submission id: ");
++         s_.moderation.returnMark(u, id, ask("Reason: "));
++         out_ << "Returned to the lecturer.\n";
++       }},
++      {"Release an approved mark", [this, &u] {
++         s_.moderation.release(u, askInt("Submission id: "));
++         out_ << "Released.\n";
++       }},
++      {"Change my password", [this, &u] { changePassword(u); }},
++  });
++}
++
++void ConsoleUi::showAssignments(const User& u) {
++  auto list = s_.submissions.assignmentsFor(u);
++  if (list.empty()) out_ << "No assignments yet.\n";
++  for (const auto& v : list) {
++    out_ << v.assignment.id << " | " << v.assignment.title << " | due "
++         << formatTime(v.effectiveDeadline) << " | " << v.status << "\n";
+   }
+ }
+ 
+-void ConsoleUi::studentMenu(const User& u) {
+-  const std::vector<std::string> items = {"My assignments", "Submit work",
+-                                          "My marks", "Change my password"};
+-  while (true) {
+-    int c = choose("Student", items);
+-    if (c <= 0) return;
+-    try {
+-      switch (c) {
+-        case 1: {
+-          auto list = s_.submissions.assignmentsFor(u);
+-          if (list.empty()) out_ << "No assignments yet.\n";
+-          for (const auto& v : list) {
+-            out_ << v.assignment.id << " | " << v.assignment.title
+-                 << " | due " << formatTime(v.effectiveDeadline) << " | "
+-                 << v.status << "\n";
+-          }
+-          break;
+-        }
+-        case 2: {
+-          int id = askInt("Assignment id: ");
+-          std::string work = askWork();
+-          SubmitResult r = s_.submissions.submit(u, id, work, false);
+-          if (r.outcome == SubmitResult::Outcome::kNeedsConfirmation) {
+-            out_ << "This is " << r.daysLate << " day(s) late. "
+-                 << "The penalty is " << formatMark(r.penaltyOnMax)
+-                 << " marks off the maximum mark.\n";
+-            if (ask("Type YES to submit it late: ") != "YES") {
+-              out_ << "Not submitted.\n";
+-              break;
+-            }
+-            r = s_.submissions.submit(u, id, work, true);
+-          }
+-          out_ << (r.replaced ? "Updated. " : "Submitted. ")
+-               << (r.late ? "Status LATE.\n" : "Status SUBMITTED.\n");
+-          break;
+-        }
+-        case 3: printMarkRows(s_.submissions.releasedMarks(u)); break;
+-        case 4: changePassword(u); break;
+-        default: break;
+-      }
+-    } catch (const Error& e) {
+-      out_ << "Error: " << e.what() << "\n";
++void ConsoleUi::submitWork(const User& u) {
++  int id = askInt("Assignment id: ");
++  std::string work = askWork();
++  SubmitResult r = s_.submissions.submit(u, id, work, false);
++  if (r.outcome == SubmitResult::Outcome::kNeedsConfirmation) {
++    out_ << "This is " << r.daysLate << " day(s) late. "
++         << "The penalty is " << formatMark(r.penaltyOnMax)
++         << " marks off the maximum mark.\n";
++    if (ask("Type YES to submit it late: ") != "YES") {
++      out_ << "Not submitted.\n";
++      return;
+     }
++    r = s_.submissions.submit(u, id, work, true);
+   }
++  out_ << (r.replaced ? "Updated. " : "Submitted. ")
++       << (r.late ? "Status LATE.\n" : "Status SUBMITTED.\n");
++}
++
++void ConsoleUi::studentMenu(const User& u) {
++  runMenu("Student", {
++      {"My assignments", [this, &u] { showAssignments(u); }},
++      {"Submit work", [this, &u] { submitWork(u); }},
++      {"My marks",
++       [this, &u] { printMarkRows(s_.submissions.releasedMarks(u)); }},
++      {"Change my password", [this, &u] { changePassword(u); }},
++  });
+ }
+ 
+ }  // namespace lms
+diff --git a/src/demo_data.cpp b/src/demo_data.cpp
+index 08c5959..15e33f3 100644
+--- a/src/demo_data.cpp
++++ b/src/demo_data.cpp
+@@ -1,9 +1,21 @@
+ #include "lms/demo_data.hpp"
+ 
++#include "lms/error.hpp"
+ #include "lms/services.hpp"
+ 
+ namespace lms {
+ 
++namespace {
++
++// The demo loader has just created these users, so a missing one means the
++// database is broken. Say so instead of reading an empty optional.
++UserRecord mustHave(const std::optional<UserRecord>& r, const char* what) {
++  if (!r) throw Error(std::string("demo data: could not find ") + what);
++  return *r;
++}
++
++}  // namespace
++
+ void createFirstAdmin(SqliteRepository& repo, const std::string& username,
+                       const std::string& password) {
+   auto user = UserFactory::create(Role::kAdmin, username, "Administrator",
+@@ -17,7 +29,7 @@ void loadDemoData(SqliteRepository& repo) {
+   Clock clock = [&clockNow] { return clockNow; };
+ 
+   createFirstAdmin(repo, "admin", "Admin#2026");
+-  auto admin = UserFactory::fromRecord(*repo.findUserByName("admin"));
++  auto admin = UserFactory::fromRecord(mustHave(repo.findUserByName("admin"), "admin"));
+ 
+   AdminService adminSvc(repo, repo, repo, clock);
+   int hodId = adminSvc.createUser(*admin, Role::kHod, "hod1", "Mr Mokoena",
+@@ -36,7 +48,7 @@ void loadDemoData(SqliteRepository& repo) {
+   adminSvc.enrol(*admin, s2, course);
+ 
+   StandardPenaltyStrategy penalty;
+-  auto lecturer = UserFactory::fromRecord(*repo.findUser(lecId));
++  auto lecturer = UserFactory::fromRecord(mustHave(repo.findUser(lecId), "lecturer"));
+   AssignmentService asg(repo, repo, repo, repo, repo, repo, clock);
+   int lab = asg.createAssignment(*lecturer, course, "Lab report",
+                                  "Write up the sorting lab.",
+@@ -45,11 +57,11 @@ void loadDemoData(SqliteRepository& repo) {
+                        now + 7 * kSecondsPerDay, 30);
+ 
+   SubmissionService subs(repo, repo, repo, repo, penalty, clock);
+-  auto st1 = UserFactory::fromRecord(*repo.findUser(s1));
+-  auto st2 = UserFactory::fromRecord(*repo.findUser(s2));
++  auto st1 = UserFactory::fromRecord(mustHave(repo.findUser(s1), "student 1"));
++  auto st2 = UserFactory::fromRecord(mustHave(repo.findUser(s2), "student 2"));
+   clockNow = now - 6 * kSecondsPerDay;  // before the deadline
+   subs.submit(*st1, lab, "Bubble sort and merge sort timings.", false);
+-  clockNow = now - 5 * kSecondsPerDay + 30 * 3600;  // 30 hours late, 2 days
++  clockNow = now - 5 * kSecondsPerDay + 30L * 3600;  // 30 hours late, 2 days
+   subs.submit(*st2, lab, "Late write-up of the sorting lab.", true);
+ }
+ 
+diff --git a/src/services_accounts.cpp b/src/services_accounts.cpp
+index 4e77aec..6d36ae0 100644
+--- a/src/services_accounts.cpp
++++ b/src/services_accounts.cpp
+@@ -171,7 +171,11 @@ void AdminService::exportAudit(const User& admin, const std::string& path) {
+     out << e.id << " | " << formatTime(e.at) << " | user " << e.actorId << " | "
+         << toString(e.action) << " | ";
+     if (e.submissionId) out << "submission " << *e.submissionId;
+-    else out << "extension " << *e.extAssignmentId << "/" << *e.extStudentId;
++    else if (e.extAssignmentId && e.extStudentId) {
++      out << "extension " << *e.extAssignmentId << "/" << *e.extStudentId;
++    } else {
++      out << "no target";  // the schema does not allow this, but do not crash
++    }
+     out << " | " << e.oldValue << " -> " << e.newValue << " | " << e.reason
+         << "\n";
+   }
+diff --git a/src/services_work.cpp b/src/services_work.cpp
+index f438015..a44b2c7 100644
+--- a/src/services_work.cpp
++++ b/src/services_work.cpp
+@@ -116,6 +116,16 @@ void AssignmentService::writeExtension(int lecturerId, int assignmentId,
+   audit_.append(entry);
+ }
+ 
++bool AssignmentService::classExtensionApplies(int assignmentId, int studentId,
++                                              Time newDeadline, Time& current) {
++  // BR4: not once that student's work is marked.
++  if (auto sub = submissions_.findSubmissionOf(assignmentId, studentId)) {
++    if (marks_.findMark(sub->id)) return false;
++  }
++  current = assignments_.effectiveDeadline(assignmentId, studentId);
++  return newDeadline > current;  // never make a deadline earlier
++}
++
+ int AssignmentService::extendForClass(const User& lecturer, int assignmentId,
+                                       Time newDeadline,
+                                       const std::string& reason) {
+@@ -136,12 +146,10 @@ int AssignmentService::extendForClass(const User& lecturer, int assignmentId,
+   Transaction tx(uow_);
+   int changed = 0;
+   for (int studentId : courses_.studentsOfCourse(a->courseId)) {
+-    // BR4: not once that student's work is marked.
+-    if (auto sub = submissions_.findSubmissionOf(assignmentId, studentId)) {
+-      if (marks_.findMark(sub->id)) continue;
++    Time current = 0;
++    if (!classExtensionApplies(assignmentId, studentId, newDeadline, current)) {
++      continue;
+     }
+-    Time current = assignments_.effectiveDeadline(assignmentId, studentId);
+-    if (newDeadline <= current) continue;  // never make a deadline earlier
+     writeExtension(lecturer.id(), assignmentId, studentId, current, newDeadline,
+                    why);
+     ++changed;
+@@ -301,10 +309,22 @@ std::vector<MarkRow> MarkingService::returned(const User& lecturer) {
+ }
+ 
+ // ------------------------------------------------------------ moderation
++namespace {
++
++// A checked downcast, so a wrong kind of user is refused instead of read as
++// something it is not.
++const HeadOfDepartment& asHead(const User& u) {
++  const auto* head = dynamic_cast<const HeadOfDepartment*>(&u);
++  if (head == nullptr) throw PermissionError("only a Head of Department can do this");
++  return *head;
++}
++
++}  // namespace
++
+ ModerationService::Loaded ModerationService::loadFor(const User& hod,
+                                                      int submissionId) {
+   requireRole(hod, Role::kHod);
+-  const auto& head = static_cast<const HeadOfDepartment&>(hod);
++  const auto& head = asHead(hod);
+   auto sub = submissions_.findSubmission(submissionId);
+   if (!sub) throw NotFoundError("submission not found");
+   auto a = assignments_.findAssignment(sub->assignmentId);
+@@ -337,7 +357,7 @@ void ModerationService::record(const User& hod, int submissionId,
+ 
+ std::vector<MarkRow> ModerationService::listPending(const User& hod) {
+   requireRole(hod, Role::kHod);
+-  const auto& head = static_cast<const HeadOfDepartment&>(hod);
++  const auto& head = asHead(hod);
+   if (head.deptId() == 0) return {};
+   return marks_.pendingForDepartment(head.deptId());
+ }
+diff --git a/src/sqlite_repository.cpp b/src/sqlite_repository.cpp
+index 60b68bf..49e209d 100644
+--- a/src/sqlite_repository.cpp
++++ b/src/sqlite_repository.cpp
+@@ -33,7 +33,7 @@ UserRecord userFrom(const Statement& s) {
+   return u;
+ }
+ 
+-const char* kUserCols =
++const char* const kUserCols =
+     "user_id, username, password_hash, full_name, role, failed_logins, active";
+ 
+ CourseInfo courseFrom(const Statement& s) {
+@@ -57,7 +57,7 @@ Assignment assignmentFrom(const Statement& s) {
+   return a;
+ }
+ 
+-const char* kAssignmentCols =
++const char* const kAssignmentCols =
+     "assignment_id, course_id, created_by, title, ifnull(description,''), "
+     "deadline, max_mark";
+ 
+@@ -71,7 +71,7 @@ Submission submissionFrom(const Statement& s) {
+   return x;
+ }
+ 
+-const char* kSubmissionCols =
++const char* const kSubmissionCols =
+     "submission_id, assignment_id, student_id, submitted_at, content";
+ 
+ MarkData markFrom(const Statement& s, int base = 0) {
+@@ -89,12 +89,12 @@ MarkData markFrom(const Statement& s, int base = 0) {
+   return m;
+ }
+ 
+-const char* kMarkCols =
++const char* const kMarkCols =
+     "m.submission_id, m.raw_mark, m.days_late, m.final_mark, m.feedback, "
+     "m.status, m.marked_by, m.marked_at, m.moderated_by, m.released_at";
+ 
+ // Marks joined to submission, assignment, course and student for the menus.
+-const char* kMarkRowSql =
++const char* const kMarkRowSql =
+     "SELECT m.submission_id, m.raw_mark, m.days_late, m.final_mark, "
+     "m.feedback, m.status, m.marked_by, m.marked_at, m.moderated_by, "
+     "m.released_at, a.assignment_id, s.student_id, a.course_id, a.title, "
+diff --git a/src/types.cpp b/src/types.cpp
+index 3b3fdd5..533eaf2 100644
+--- a/src/types.cpp
++++ b/src/types.cpp
+@@ -55,16 +55,21 @@ std::string formatTime(Time t) {
+   return buf;
+ }
+ 
++namespace {
++
++bool between(int v, int lo, int hi) { return v >= lo && v <= hi; }
++
++}  // namespace
++
+ Time parseTime(const std::string& text) {
+   int y = 0, mo = 0, d = 0, h = 0, mi = 0, s = 0;
+   int n = std::sscanf(text.c_str(), "%d-%d-%d %d:%d:%d", &y, &mo, &d, &h, &mi,
+                       &s);
+   if (n < 5) throw ValidationError("date must look like 2026-11-30 17:00");
+-  if (n == 5) s = 0;
+-  if (mo < 1 || mo > 12 || d < 1 || d > 31 || h < 0 || h > 23 || mi < 0 ||
+-      mi > 59 || s < 0 || s > 59 || y < 1970 || y > 2200) {
+-    throw ValidationError("date is out of range");
+-  }
++  // with five fields scanned, s keeps its starting value of zero
++  bool inRange = between(mo, 1, 12) && between(d, 1, 31) && between(h, 0, 23) &&
++                 between(mi, 0, 59) && between(s, 0, 59) && between(y, 1970, 2200);
++  if (!inRange) throw ValidationError("date is out of range");
+   std::tm tm{};
+   tm.tm_year = y - 1900;
+   tm.tm_mon = mo - 1;
+diff --git a/src/user.cpp b/src/user.cpp
+index b365b39..0aacc1c 100644
+--- a/src/user.cpp
++++ b/src/user.cpp
+@@ -1,5 +1,7 @@
+ #include "lms/user.hpp"
+ 
++#include <algorithm>
++
+ #include "lms/error.hpp"
+ #include "lms/password.hpp"
+ 
+@@ -15,17 +17,29 @@ void requireValidPassword(const std::string& password) {
+   }
+ }
+ 
+-std::unique_ptr<User> UserFactory::create(Role role, const std::string& username,
+-                                          const std::string& fullName,
+-                                          const std::string& password) {
++namespace {
++
++bool allowedUsernameChar(char c) {
++  bool letter = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
++  bool digit = c >= '0' && c <= '9';
++  return letter || digit || c == '.' || c == '_' || c == '-';
++}
++
++void requireValidUsername(const std::string& username) {
+   if (username.empty() || username.size() > 40) {
+     throw ValidationError("username must be 1 to 40 characters");
+   }
+-  for (char c : username) {
+-    bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+-              (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+-    if (!ok) throw ValidationError("username has a character that is not allowed");
++  if (!std::all_of(username.begin(), username.end(), allowedUsernameChar)) {
++    throw ValidationError("username has a character that is not allowed");
+   }
++}
++
++}  // namespace
++
++std::unique_ptr<User> UserFactory::create(Role role, const std::string& username,
++                                          const std::string& fullName,
++                                          const std::string& password) {
++  requireValidUsername(username);
+   if (fullName.empty() || fullName.size() > 80) {
+     throw ValidationError("full name must be 1 to 80 characters");
+   }
+-- 
+2.43.0
+
