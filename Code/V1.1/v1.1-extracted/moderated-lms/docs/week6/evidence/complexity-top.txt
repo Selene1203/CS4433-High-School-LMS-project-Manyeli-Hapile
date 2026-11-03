@@ -1,0 +1,16 @@
+      60     10    447      2      60 main@20-79@src/main.cpp
+      45     10    339      4      47 lms::SubmissionService::submit@174-220@src/services_work.cpp
+      26     10    244      2      27 lms::verifyPassword@68-94@src/password.cpp
+      23     10    257      1      25 lms::parseTime@64-88@src/types.cpp
+      95      9    827      1      95 lms::ConsoleUi::adminMenu@151-245@src/console_ui.cpp
+      34      9    225      4      34 lms::AssignmentService::extendForClass@129-162@src/services_work.cpp
+      30      9    231      5      31 lms::AssignmentService::grantExtension@63-93@src/services_work.cpp
+      27      9    216      6      27 lms::AssignmentService::createAssignment@35-61@src/services_work.cpp
+       5      9     58      1       5 lms::allowedUsernameChar@22-26@src/user.cpp
+      27      8    197      2      27 lms::AuthService::login@16-42@src/services_accounts.cpp
+      19      8    185      2      19 lms::ConsoleUi::choose@56-74@src/console_ui.cpp
+      18      8    164      2      18 lms::ModerationService::loadFor@324-341@src/services_work.cpp
+==========================================================================================
+Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
+------------------------------------------------------------------------------------------
+      2527       9.6     2.6       81.9      190            0      0.00    0.00

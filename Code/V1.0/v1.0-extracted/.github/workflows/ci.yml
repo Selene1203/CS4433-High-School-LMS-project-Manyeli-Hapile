@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*", "gate-*"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: Build & test (${{ matrix.compiler }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [g++, clang++]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libsqlite3-dev libssl-dev clang
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=${{ matrix.compiler }}
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  static-analysis:
+    name: Static analysis (cppcheck)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: Run cppcheck
+        run: >
+          cppcheck --enable=warning,style,performance,portability
+          --std=c++17 --error-exitcode=1 --inline-suppr
+          -I include src include tests
+
+  coverage:
+    name: Coverage (gcov/lcov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libsqlite3-dev libssl-dev lcov
+      - name: Configure with coverage
+        run: cmake -S . -B build-cov -DCMAKE_BUILD_TYPE=Debug -DLMS_ENABLE_COVERAGE=ON
+      - name: Build and test
+        run: |
+          cmake --build build-cov --parallel
+          ctest --test-dir build-cov --output-on-failure
+      - name: Coverage summary
+        run: |
+          lcov --capture --directory build-cov --output-file coverage.info --ignore-errors mismatch
+          lcov --extract coverage.info "$PWD/src/*" "$PWD/include/*" --output-file coverage.src.info
+          lcov --list coverage.src.info
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.src.info

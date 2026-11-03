@@ -1,0 +1,129 @@
+// Moderated High School LMS, BCNF design
+// Paste into https://dbdiagram.io/d  (new diagram, replace the default code)
+
+Project moderated_lms {
+  database_type: 'SQLite'
+  Note: 'CS4433 Phase 3, BCNF'
+}
+
+Table app_user {
+  user_id integer [pk, increment]
+  username varchar(40) [not null, unique]
+  password_hash varchar(128) [not null]
+  full_name varchar(80) [not null]
+  role varchar(10) [not null, note: 'ADMIN, LECTURER, HOD or STUDENT']
+  failed_logins integer [not null, default: 0]
+  active boolean [not null, default: true]
+}
+
+Table department {
+  dept_id integer [pk, increment]
+  name varchar(60) [not null, unique]
+  hod_id integer [unique, note: 'the Head of Department, if one is set']
+}
+
+Table course {
+  course_id integer [pk, increment]
+  dept_id integer [not null]
+  code varchar(12) [not null, unique]
+  name varchar(80) [not null]
+}
+
+Table course_lecturer {
+  course_id integer [not null]
+  lecturer_id integer [not null]
+  indexes {
+    (course_id, lecturer_id) [pk]
+  }
+}
+
+Table enrolment {
+  student_id integer [not null]
+  course_id integer [not null]
+  enrolled_on date [not null]
+  indexes {
+    (student_id, course_id) [pk]
+  }
+}
+
+Table assignment {
+  assignment_id integer [pk, increment]
+  course_id integer [not null]
+  created_by integer [not null]
+  title varchar(120) [not null]
+  description text
+  deadline datetime [not null]
+  max_mark integer [not null, note: 'must be above 0']
+  indexes {
+    (course_id, title) [unique]
+  }
+}
+
+Table extension {
+  assignment_id integer [not null]
+  student_id integer [not null]
+  new_deadline datetime [not null]
+  reason varchar(200) [not null]
+  granted_by integer [not null]
+  granted_at datetime [not null]
+  indexes {
+    (assignment_id, student_id) [pk]
+  }
+}
+
+Table submission {
+  submission_id integer [pk, increment]
+  assignment_id integer [not null]
+  student_id integer [not null]
+  submitted_at datetime [not null]
+  content text [not null]
+  indexes {
+    (assignment_id, student_id) [unique]
+  }
+}
+
+Table mark {
+  submission_id integer [pk]
+  raw_mark decimal(6,2) [not null]
+  days_late integer [not null]
+  final_mark decimal(6,2) [not null]
+  feedback text [not null]
+  status varchar(10) [not null, note: 'MARKED, RETURNED, MODERATED or RELEASED']
+  marked_by integer [not null]
+  marked_at datetime [not null]
+  moderated_by integer
+  released_at datetime
+}
+
+Table audit_log {
+  audit_id integer [pk, increment]
+  actor_id integer [not null]
+  at datetime [not null]
+  action varchar(10) [not null]
+  submission_id integer
+  ext_assignment_id integer
+  ext_student_id integer
+  old_value varchar(80)
+  new_value varchar(80)
+  reason varchar(200)
+}
+
+Ref: department.hod_id > app_user.user_id
+Ref: course.dept_id > department.dept_id
+Ref: course_lecturer.course_id > course.course_id
+Ref: course_lecturer.lecturer_id > app_user.user_id
+Ref: enrolment.student_id > app_user.user_id
+Ref: enrolment.course_id > course.course_id
+Ref: assignment.course_id > course.course_id
+Ref: assignment.created_by > app_user.user_id
+Ref: extension.assignment_id > assignment.assignment_id
+Ref: extension.student_id > app_user.user_id
+Ref: extension.granted_by > app_user.user_id
+Ref: submission.assignment_id > assignment.assignment_id
+Ref: submission.student_id > app_user.user_id
+Ref: mark.submission_id - submission.submission_id
+Ref: mark.marked_by > app_user.user_id
+Ref: mark.moderated_by > app_user.user_id
+Ref: audit_log.actor_id > app_user.user_id
+Ref: audit_log.submission_id > submission.submission_id
+Ref: audit_log.(ext_assignment_id, ext_student_id) > extension.(assignment_id, student_id)
